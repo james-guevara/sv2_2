@@ -5,24 +5,25 @@ import sys
 import argparse
 
 parser = argparse.ArgumentParser(description = "SV2 genotyper")
-parser.add_argument("--features_file", help = "Input features file")
+parser.add_argument("--features_file", help = "Input features .tsv file")
+parser.add_argument("--genotype_predictions_output_tsv", help = "Output features .tsv file with genotype predictions")
 parser.add_argument("--sex", help = "Sex of sample: male or female")
 args = parser.parse_args()
 
-df = pd.read_csv(args.features_file, sep = "\t")
-if sex == "male":
+df_all = pd.read_csv(args.features_file, sep = "\t")
+if args.sex == "male":
     # Filter out the sex chromosome SVs from the main dataframe
-    df = df[~(df["chrom"].str.contains("X") ! df["chrom"].str.contains("Y")]
+    df, df_male_sex_chromosomes = df_all[(mask := ~(df_all["chrom"].str.contains("X") | df_all["chrom"].str.contains("Y")))], df_all[~mask]
 
 df_highcov_del_gt1kb_values = df[(df["size"] > 1000) & (df["type"] == "DEL")][["chrom", "start", "end", "type", "coverage_GCcorrected", "discordant_ratio", "split_ratio"]].dropna().values
 df_highcov_del_lt1kb_values = df[(df["size"] <= 1000) & (df["type"] == "DEL")][["chrom", "start", "end", "type", "coverage_GCcorrected", "discordant_ratio", "split_ratio"]].dropna().values
 df_dup_breakpoint_values = df[df["type"] == "DUP"][["chrom", "start", "end", "type", "coverage_GCcorrected", "discordant_ratio", "split_ratio"]].dropna().values
 df_dup_har_values = df[df["type"] == "DUP"][["chrom", "start", "end", "type", "coverage_GCcorrected", "heterozygous_allele_ratio"]].dropna().values
 
-clf_highcov_del_gt1kb = joblib.load("training/clf_del_gt1kb.pkl")
-clf_highcov_del_lt1kb = joblib.load("training/clf_del_lt1kb.pkl")
-clf_dup_breakpoint = joblib.load("training/clf_dup_breakpoint.pkl")
-clf_dup_har = joblib.load("training/clf_dup_har.pkl")
+clf_highcov_del_gt1kb = joblib.load("data/trained_classifiers/clf_del_gt1kb.pkl")
+clf_highcov_del_lt1kb = joblib.load("data/trained_classifiers/clf_del_lt1kb.pkl")
+clf_dup_breakpoint = joblib.load("data/trained_classifiers//clf_dup_breakpoint.pkl")
+clf_dup_har = joblib.load("data/trained_classifiers/clf_dup_har.pkl")
 
 preds_highcov_del_gt1kb = clf_highcov_del_gt1kb.predict_proba(df_highcov_del_gt1kb_values[:, 4:])
 preds_highcov_del_lt1kb = clf_highcov_del_lt1kb.predict_proba(df_highcov_del_lt1kb_values[:, 4:])
@@ -54,10 +55,13 @@ df_sort_col.loc[(df_sort_col['REF_GENOTYPE_LIKELIHOOD'] > df_sort_col['HOM_GENOT
        (df_sort_col['REF_GENOTYPE_LIKELIHOOD'] > df_sort_col['HET_GENOTYPE_LIKELIHOOD']) ,
        'GEN'] = "0/0"
 
-from time import gmtime, strftime
-current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
-df_sort_col.to_csv("genotyping_preds{}.tsv".format(current_time), sep = "\t", index = False)
 
+if not args.genotype_predictions_output_tsv:
+    from time import gmtime, strftime
+    current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
+    df_sort_col.to_csv("genotyping_preds_{}.tsv".format(current_time), sep = "\t", index = False)
+    df_male_sex_chromosomes.to_csv("genotyping_preds_male_sex_chromosome_{}.tsv".format(current_time), sep = "\t", index = False) # testing
+else: df_sort_col.to_csv(args.genotype_predictions_output_tsv, sep = "\t", index = False)
 
 # TODO:
 # Reorganize code (such that predictions are done after each df is created first, rather than doing them all at end)

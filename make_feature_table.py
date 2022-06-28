@@ -368,7 +368,9 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
 
     return alignment_features_table
 
-
+################################################## 
+##################################################
+##################################################
 
 # RUNNING NOW
 parser = argparse.ArgumentParser(description = "SV2 genotyper")
@@ -378,9 +380,9 @@ parser.add_argument("--snv_vcf_file", help = "SNV VCF file input")
 parser.add_argument("--regions_bed", help = "BED file with pre-generated random genomic regions (for estimating coverage per chromosome)")
 parser.add_argument("--exclude_regions_bed", help = "BED file with pre-generated random genomic regions (for estimating coverage per chromosome)")
 parser.add_argument("--sv_bed_file", help = "SV BED file input")
-parser.add_argument("--sv_feature_output_tsv", help = "Feature table .tsv output")
-parser.add_argument("--preprocessing_table_input", help = "..")
-parser.add_argument("--preprocessing_table_output", help = "..")
+parser.add_argument("--sv_feature_output_tsv", help = "Feature table .tsv output (it will be given the default name if this arugment isn't set)")
+parser.add_argument("--preprocessing_table_input", help = "A pre-generated preprocessing table (if SV2 had been run before and you want to skip the preprocessing part of the program")
+parser.add_argument("--preprocessing_table_output", help = "Preprocessing table .tsv output (it will be given the default name if this argument isn't set)")
 parser.add_argument("--gc_reference_table", help = "GC content reference table input")
 args = parser.parse_args()
 
