@@ -10,13 +10,7 @@
 # Get reference allele from FASTA? (And use SVLEN to determine how long the reference allele should be... actually maybe we can just set it to "N"; that's what smoove does.) 
 
 # Fix sex chromosome stuff
-    # 1. We've trained a sex chromosome classifier (for DUPs and DELS both I think)
-    # 2. In the classify.py step, we have to separate the dataframe for if sex == 1: df[df[chrom.contains("X") | chrom.contains("Y")] (basically, separate out this dataframe if these conditions are met)
-    # 3. Then, simply run the sex chromosome classifier on this dataframe
     # 4. Later on, we can filter out the pseudo-autosomal region (PAR) because that is autosomal (so use the regular classifiers for that part; it would depend on reference fasta type)
-
-# For DUP variants
-    # 1. If split-read and paired-end features are both 0, then we use the HAR classifier. Else, we use the regular classifier.
 
 import pysam
 import pysam.bcftools

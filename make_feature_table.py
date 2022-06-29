@@ -368,89 +368,88 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
 
     return alignment_features_table
 
-################################################## 
-##################################################
-##################################################
 
-# RUNNING NOW
-parser = argparse.ArgumentParser(description = "SV2 genotyper")
-parser.add_argument("--alignment_file", help = "CRAM/BAM file input")
-parser.add_argument("--reference_fasta", help = "Reference fasta file input")
-parser.add_argument("--snv_vcf_file", help = "SNV VCF file input")
-parser.add_argument("--regions_bed", help = "BED file with pre-generated random genomic regions (for estimating coverage per chromosome)")
-parser.add_argument("--exclude_regions_bed", help = "BED file with pre-generated random genomic regions (for estimating coverage per chromosome)")
-parser.add_argument("--sv_bed_file", help = "SV BED file input")
-parser.add_argument("--sv_feature_output_tsv", help = "Feature table .tsv output (it will be given the default name if this arugment isn't set)")
-parser.add_argument("--preprocessing_table_input", help = "A pre-generated preprocessing table (if SV2 had been run before and you want to skip the preprocessing part of the program")
-parser.add_argument("--preprocessing_table_output", help = "Preprocessing table .tsv output (it will be given the default name if this argument isn't set)")
-parser.add_argument("--gc_reference_table", help = "GC content reference table input")
-args = parser.parse_args()
 
-# Chromosomes to analyze (1,... 22, X, Y)
-chroms = list(map(str, np.arange(1, 22 + 1)))
-chroms.extend(["X", "Y"])
+if __name__ == "__main__":
+    # Argument parsing (when this script is run by itself)
+    parser = argparse.ArgumentParser(description = "SV2 genotyper")
+    parser.add_argument("--alignment_file", help = "CRAM/BAM file input")
+    parser.add_argument("--reference_fasta", help = "Reference fasta file input")
+    parser.add_argument("--snv_vcf_file", help = "SNV VCF file input")
+    parser.add_argument("--regions_bed", help = "BED file with pre-generated random genomic regions (for estimating coverage per chromosome)")
+    parser.add_argument("--exclude_regions_bed", help = "BED file with pre-generated random genomic regions (for estimating coverage per chromosome)")
+    parser.add_argument("--sv_bed_file", help = "SV BED file input")
+    parser.add_argument("--sv_feature_output_tsv", help = "Feature table .tsv output (it will be given the default name if this arugment isn't set)")
+    parser.add_argument("--preprocessing_table_input", help = "A pre-generated preprocessing table (if SV2 had been run before and you want to skip the preprocessing part of the program")
+    parser.add_argument("--preprocessing_table_output", help = "Preprocessing table .tsv output (it will be given the default name if this argument isn't set)")
+    parser.add_argument("--gc_reference_table", help = "GC content reference table input")
+    args = parser.parse_args()
 
-# SV types to classify
-svtypes = ("DEL", "DUP")
+    # Chromosomes to analyze (1,... 22, X, Y)
+    chroms = list(map(str, np.arange(1, 22 + 1)))
+    chroms.extend(["X", "Y"])
 
-reference_filepath = args.reference_fasta 
+    # SV types to classify
+    svtypes = ("DEL", "DUP")
 
-# Make the GC content reference table
-GC_content_reference_table_filepath = args.gc_reference_table
-GC_content_reference_table = make_GC_content_reference_table(GC_content_reference_table_filepath)
+    reference_filepath = args.reference_fasta 
 
-# Make the regions table 
-random_regions_table = args.regions_bed
-regions_table = make_regions_table(random_regions_table)
+    # Make the GC content reference table
+    GC_content_reference_table_filepath = args.gc_reference_table
+    GC_content_reference_table = make_GC_content_reference_table(GC_content_reference_table_filepath)
 
-alignment_filepath = args.alignment_file
-snv_vcf_filepath = args.snv_vcf_file
-if not args.preprocessing_table_input:
-    # Make the CRAM/BAM preprocessing table
-    alignment_preprocessing_table = make_alignment_preprocessing_table(alignment_filepath, reference_filepath)
+    # Make the regions table 
+    random_regions_table = args.regions_bed
+    regions_table = make_regions_table(random_regions_table)
+
+    alignment_filepath = args.alignment_file
+    snv_vcf_filepath = args.snv_vcf_file
+    if not args.preprocessing_table_input:
+        # Make the CRAM/BAM preprocessing table
+        alignment_preprocessing_table = make_alignment_preprocessing_table(alignment_filepath, reference_filepath)
+        
+        # Make the SNV preprocessing table
+        snv_preprocessing_table = get_snv_preprocessing_data(snv_vcf_filepath)
     
-    # Make the SNV preprocessing table
-    snv_preprocessing_table = get_snv_preprocessing_data(snv_vcf_filepath)
+        # Merge and output the preprocessing table
+        df_alignment_preprocessing_table = pd.DataFrame.from_dict(alignment_preprocessing_table, orient = "index")
+        df_snv_preprocessing_table = pd.DataFrame.from_dict(snv_preprocessing_table, orient = "index")
+        df_preprocessing_table = df_alignment_preprocessing_table.join(df_snv_preprocessing_table).reset_index(level = 0).rename(columns = {"index": "chrom"})
+        df_preprocessing_table.to_csv(args.preprocessing_table_output, sep = "\t", index = False)
 
-    # Merge and output the preprocessing table
-    df_alignment_preprocessing_table = pd.DataFrame.from_dict(alignment_preprocessing_table, orient = "index")
-    df_snv_preprocessing_table = pd.DataFrame.from_dict(snv_preprocessing_table, orient = "index")
-    df_preprocessing_table = df_alignment_preprocessing_table.join(df_snv_preprocessing_table).reset_index(level = 0).rename(columns = {"index": "chrom"})
-    df_preprocessing_table.to_csv(args.preprocessing_table_output, sep = "\t", index = False)
+    else:
+        df_preprocessing_table = pd.read_csv(args.preprocessing_table_input, sep = "\t")
 
-else:
-    df_preprocessing_table = pd.read_csv(args.preprocessing_table_input, sep = "\t")
+    # Preprocess the input SV BED file
+    sv_bed_filepath = args.sv_bed_file
+    sv_bed_list = []
+    with open(sv_bed_filepath, "r") as f:
+        for line in f:
+            linesplit = line.rstrip().split("\t")
+            chrom, start, stop, features = linesplit[0], int(linesplit[1]), int(linesplit[2]), linesplit[3]
+            if start > stop: continue
+            sv_bed_list.append(line.rstrip())
+    sv_bed = BedTool(sv_bed_list).filter(lambda x: len(x) > 0).saveas()
+    exclude_bed = BedTool(args.exclude_regions_bed).merge()
+    sv_interval_table = make_sv_interval_table(sv_bed, exclude_bed)
 
-# Preprocess the input SV BED file
-sv_bed_filepath = args.sv_bed_file
-sv_bed_list = []
-with open(sv_bed_filepath, "r") as f:
-    for line in f:
-        linesplit = line.rstrip().split("\t")
-        chrom, start, stop, features = linesplit[0], int(linesplit[1]), int(linesplit[2]), linesplit[3]
-        if start > stop: continue
-        sv_bed_list.append(line.rstrip())
-sv_bed = BedTool(sv_bed_list).filter(lambda x: len(x) > 0).saveas()
-exclude_bed = BedTool(args.exclude_regions_bed).merge()
-sv_interval_table = make_sv_interval_table(sv_bed, exclude_bed)
-
-# Make SNV features table (for each filtered SV call)
-snv_features_table = make_snv_features_table(snv_vcf_filepath, sv_bed)
-
-# Make CRAM/BAM features table (for each filtered SV call)
-alignment_features_table = make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed)
-
-# Merge and output feature table
-df_alignment_features_table = pd.DataFrame.from_dict(alignment_features_table, orient = "index")
-df_snv_features_table = pd.DataFrame.from_dict(snv_features_table, orient = "index")
-df_features_table = df_alignment_features_table.join(df_snv_features_table).reset_index().rename(columns = {"level_0": "chrom", "level_1": "start", "level_2": "end"})
-
-if not args.sv_feature_output_tsv: 
-    from time import gmtime, strftime
-    current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
-    df_features_table.to_csv("sv2_features.{}.tsv".format(current_time), sep = "\t", index = False)
-else: df_features_table.to_csv(args.sv_feature_output_tsv, sep = "\t", index = False)
-
-# Sample command:
-# python sv2_refactor_args.py --reference_fasta /expanse/lustre/projects/ddp195/j3guevar/resources/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla.fa --alignment_file /expanse/projects/sebat1/genomicsdataanalysis/resources/NA12878/illumina_platinum_pedigree/NA12878.alt_bwamem_GRCh38DH.20150706.CEU.illumina_platinum_ped.cram --regions_bed my_random.bed --gc_reference_table GC_content_reference.txt --snv_vcf_file /home/j3guevar/tests/SV2_nim/src/SV2_nimpkg/refactored_sv2/input_files/NA12878.vcf.gz --sv_bed_file /home/j3guevar/tests/sv2_refactored/test_inputs/file.nbl.bed
-# python sv2_refactor_args.py --reference_fasta /expanse/lustre/projects/ddp195/j3guevar/resources/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla.fa --alignment_file /expanse/projects/sebat1/genomicsdataanalysis/resources/NA12878/illumina_platinum_pedigree/NA12878.alt_bwamem_GRCh38DH.20150706.CEU.illumina_platinum_ped.cram --regions_bed my_random.bed --gc_reference_table GC_content_reference.txt --snv_vcf_file /home/j3guevar/tests/SV2_nim/src/SV2_nimpkg/refactored_sv2/input_files/NA12878.vcf.gz --sv_bed_file /home/j3guevar/tests/sv2_refactored/test_inputs/file.nbl.10.bed --preprocessing_table_input preprocessing_table_output_test.txt --exclude_regions_bed /home/j3guevar/tests/SV2_nim/src/SV2_nimpkg/resources/hg38_excluded.bed.gz
+    # Make SNV features table (for each filtered SV call)
+    snv_features_table = make_snv_features_table(snv_vcf_filepath, sv_bed)
+    
+    # Make CRAM/BAM features table (for each filtered SV call)
+    alignment_features_table = make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed)
+    
+    # Merge and output feature table
+    df_alignment_features_table = pd.DataFrame.from_dict(alignment_features_table, orient = "index")
+    df_snv_features_table = pd.DataFrame.from_dict(snv_features_table, orient = "index")
+    df_features_table = df_alignment_features_table.join(df_snv_features_table).reset_index().rename(columns = {"level_0": "chrom", "level_1": "start", "level_2": "end"})
+    
+    if not args.sv_feature_output_tsv: 
+        from time import gmtime, strftime
+        current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
+        df_features_table.to_csv("sv2_features.{}.tsv".format(current_time), sep = "\t", index = False)
+    else: df_features_table.to_csv(args.sv_feature_output_tsv, sep = "\t", index = False)
+    
+    # Sample commands:
+    # python sv2_refactor_args.py --reference_fasta /expanse/lustre/projects/ddp195/j3guevar/resources/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla.fa --alignment_file /expanse/projects/sebat1/genomicsdataanalysis/resources/NA12878/illumina_platinum_pedigree/NA12878.alt_bwamem_GRCh38DH.20150706.CEU.illumina_platinum_ped.cram --regions_bed my_random.bed --gc_reference_table GC_content_reference.txt --snv_vcf_file /home/j3guevar/tests/SV2_nim/src/SV2_nimpkg/refactored_sv2/input_files/NA12878.vcf.gz --sv_bed_file /home/j3guevar/tests/sv2_refactored/test_inputs/file.nbl.bed
+    # python sv2_refactor_args.py --reference_fasta /expanse/lustre/projects/ddp195/j3guevar/resources/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla.fa --alignment_file /expanse/projects/sebat1/genomicsdataanalysis/resources/NA12878/illumina_platinum_pedigree/NA12878.alt_bwamem_GRCh38DH.20150706.CEU.illumina_platinum_ped.cram --regions_bed my_random.bed --gc_reference_table GC_content_reference.txt --snv_vcf_file /home/j3guevar/tests/SV2_nim/src/SV2_nimpkg/refactored_sv2/input_files/NA12878.vcf.gz --sv_bed_file /home/j3guevar/tests/sv2_refactored/test_inputs/file.nbl.10.bed --preprocessing_table_input preprocessing_table_output_test.txt --exclude_regions_bed /home/j3guevar/tests/SV2_nim/src/SV2_nimpkg/resources/hg38_excluded.bed.gz

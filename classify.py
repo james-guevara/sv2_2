@@ -8,7 +8,32 @@ parser = argparse.ArgumentParser(description = "SV2 genotyper")
 parser.add_argument("--features_file", help = "Input features .tsv file")
 parser.add_argument("--genotype_predictions_output_tsv", help = "Output features .tsv file with genotype predictions")
 parser.add_argument("--sex", help = "Sex of sample: male or female")
+# Load trained classifiers (.pkl files)
+parser.add_argument("--clf_highcov_del_gt1kb", help = "Classifier for high-coverage deletions that are greater than 1KB in length.")
+parser.add_argument("--clf_highcov_del_lt1kb", help = "Classifier for high-coverage deletions that are less than 1KB in length.")
+parser.add_argument("--clf_dup_breakpoint", help = "Duplication classifier that uses breakpoint features.")
+parser.add_argument("--clf_dup_har", help = "Duplication classifier that uses heterozygous allele ratio feature.")
+parser.add_argument("--clf_del_malesexchrom", help = "Deletion male sex chromosome classifier.")
+parser.add_argument("--clf_dup_malesexchrom", help = "Duplication male sex chromosome classifier.")
+
+# Set default filepaths for the classifiers
+clf_highcov_del_gt1kb_filepath = "data/trained_classifiers/clf_del_gt1kb.pkl"
+clf_highcov_del_lt1kb_filepath = "data/trained_classifiers/clf_del_lt1kb.pkl"
+clf_dup_breakpoint_filepath = "data/trained_classifiers/clf_dup_breakpoint.pkl"
+clf_dup_har_filepath = "data/trained_classifiers/clf_dup_har.pkl"
+clf_del_malesexchrom_filepath = "data/trained_classifiers/clf_del_malesexchrom.pkl"
+clf_dup_malesexchrom_filepath = "data/trained_classifiers/clf_dup_malesexchrom.pkl"
+
 args = parser.parse_args()
+
+# If classifier filepaths are provided as arguments, use the ones provided as arguments
+if args.clf_highcov_del_gt1kb: clf_highcov_del_gt1kb_filepath = args.clf_highcov_del_gt1kb
+if args.clf_highcov_del_lt1kb: clf_highcov_del_lt1kb_filepath = args.clf_highcov_del_lt1kb
+if args.clf_dup_breakpoint: clf_dup_breakpoint_filepath = args.clf_dup_breakpoint
+if args.clf_dup_har: clf_dup_har_filepath = args.clf_dup_har
+if args.clf_del_malesexchrom: clf_del_malesexchrom_filepath = args.clf_del_malesexchrom
+if args.clf_dup_malesexchrom: clf_dup_malesexchrom_filepath = args.clf_dup_malesexchrom
+
 
 df = pd.read_csv(args.features_file, sep = "\t")
 df_male_sex_chromosomes = pd.DataFrame(columns = df.columns)
@@ -26,10 +51,10 @@ df_dup_breakpoint_values = df_dup_breakpoint_values[(df_dup_breakpoint_values["d
 df_dup_har_values = df[df["type"] == "DUP"][["chrom", "start", "end", "type", "coverage_GCcorrected", "discordant_ratio", "split_ratio", "heterozygous_allele_ratio"]].dropna()
 df_dup_har_values = df_dup_har_values[(df_dup_har_values["discordant_ratio"] == 0.0) & (df_dup_har_values["split_ratio"] == 0.0)][["chrom", "start", "end", "type", "coverage_GCcorrected", "heterozygous_allele_ratio"]].values
 
-clf_highcov_del_gt1kb = joblib.load("data/trained_classifiers/clf_del_gt1kb.pkl")
-clf_highcov_del_lt1kb = joblib.load("data/trained_classifiers/clf_del_lt1kb.pkl")
-clf_dup_breakpoint = joblib.load("data/trained_classifiers//clf_dup_breakpoint.pkl")
-clf_dup_har = joblib.load("data/trained_classifiers/clf_dup_har.pkl")
+clf_highcov_del_gt1kb = joblib.load(clf_highcov_del_gt1kb_filepath)
+clf_highcov_del_lt1kb = joblib.load(clf_highcov_del_lt1kb_filepath)
+clf_dup_breakpoint = joblib.load(clf_dup_breakpoint_filepath)
+clf_dup_har = joblib.load(clf_dup_har_filepath)
 
 preds_highcov_del_gt1kb = clf_highcov_del_gt1kb.predict_proba(df_highcov_del_gt1kb_values[:, 4:])
 preds_highcov_del_lt1kb = clf_highcov_del_lt1kb.predict_proba(df_highcov_del_lt1kb_values[:, 4:])
@@ -52,8 +77,8 @@ if not df_male_sex_chromosomes.empty:
     df_malesexchrom_del_values = df_male_sex_chromosomes[df_male_sex_chromosomes["type"] == "DEL"][["chrom", "start", "end", "type", "coverage_GCcorrected", "discordant_ratio", "split_ratio"]].dropna().values
     df_malesexchrom_dup_values = df_male_sex_chromosomes[df_male_sex_chromosomes["type"] == "DUP"][["chrom", "start", "end", "type", "coverage_GCcorrected", "discordant_ratio", "split_ratio"]].dropna().values
     
-    clf_del_malesexchrom = joblib.load("data/trained_classifiers/clf_del_malesexchrom.pkl")
-    clf_dup_malesexchrom = joblib.load("data/trained_classifiers/clf_dup_malesexchrom.pkl")
+    clf_del_malesexchrom = joblib.load(clf_del_malesexchrom_filepath)
+    clf_dup_malesexchrom = joblib.load(clf_dup_malesexchrom_filepath)
     
     preds_malesexchrom_del = clf_del_malesexchrom.predict_proba(df_malesexchrom_del_values[:, 4:])
     preds_malesexchrom_dup = clf_dup_malesexchrom.predict_proba(df_malesexchrom_dup_values[:, 4:])
@@ -87,7 +112,6 @@ df_sort_col.loc[(df_sort_col['REF_GENOTYPE_LIKELIHOOD'] > df_sort_col['HOM_GENOT
        (df_sort_col['REF_GENOTYPE_LIKELIHOOD'] > df_sort_col['HET_GENOTYPE_LIKELIHOOD']) ,
        'GEN'] = "0/0"
 
-
 if not args.genotype_predictions_output_tsv:
     from time import gmtime, strftime
     current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
@@ -96,5 +120,3 @@ else: df_sort_col.to_csv(args.genotype_predictions_output_tsv, sep = "\t", index
 
 # TODO:
 # Reorganize code (such that predictions are done after each df is created first, rather than doing them all at end)
-# Some if/else code (for males, empty arrays, etc.)
-# Merge dup dataframes?
