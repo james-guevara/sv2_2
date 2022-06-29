@@ -11,9 +11,14 @@ parser.add_argument("--sex", help = "Sex of sample: male or female")
 args = parser.parse_args()
 
 df_all = pd.read_csv(args.features_file, sep = "\t")
+df = pd.DataFrame()
+df_male_sex_chromosomes = pd.DataFrame()
 if args.sex == "male":
     # Filter out the sex chromosome SVs from the main dataframe
-    df, df_male_sex_chromosomes = df_all[(mask := ~(df_all["chrom"].str.contains("X") | df_all["chrom"].str.contains("Y")))], df_all[~mask]
+    df_male_sex_chromosomes = df_all[(mask := (df_all["chrom"].str.contains("X") | df_all["chrom"].str.contains("Y")))]
+    df = df_all[~mask]
+
+# Autosomal classification
 
 df_highcov_del_gt1kb_values = df[(df["size"] > 1000) & (df["type"] == "DEL")][["chrom", "start", "end", "type", "coverage_GCcorrected", "discordant_ratio", "split_ratio"]].dropna().values
 df_highcov_del_lt1kb_values = df[(df["size"] <= 1000) & (df["type"] == "DEL")][["chrom", "start", "end", "type", "coverage_GCcorrected", "discordant_ratio", "split_ratio"]].dropna().values
@@ -40,6 +45,30 @@ df_preds_concat_sorted = df_preds_concat_sorted.merge(df, on = ["chrom", "start"
 df_preds_concat_sorted["ALT_GENOTYPE_LIKELIHOOD"] = df_preds_concat_sorted["HET_GENOTYPE_LIKELIHOOD"] + df_preds_concat_sorted["REF_GENOTYPE_LIKELIHOOD"]
 df_preds_concat_sorted["REF_QUAL"] = -10.0*np.log10(1.0 - df_preds_concat_sorted["HOM_GENOTYPE_LIKELIHOOD"])
 df_preds_concat_sorted["ALT_QUAL"] = -10.0*np.log10(df_preds_concat_sorted["HOM_GENOTYPE_LIKELIHOOD"])
+
+# Male sex chromosome classifiers
+df_malesexchrom_del_values = df_male_sex_chromosomes[df_male_sex_chromosomes["type"] == "DEL"][["chrom", "start", "end", "type", "coverage_GCcorrected", "discordant_ratio", "split_ratio"]].dropna().values
+df_malesexchrom_dup_values = df_male_sex_chromosomes[df_male_sex_chromosomes["type"] == "DUP"][["chrom", "start", "end", "type", "coverage_GCcorrected", "discordant_ratio", "split_ratio"]].dropna().values
+
+clf_del_malesexchrom = joblib.load("data/trained_classifiers/clf_del_malesexchrom.pkl")
+clf_dup_malesexchrom = joblib.load("data/trained_classifiers/clf_dup_malesexchrom.pkl")
+
+preds_malesexchrom_del = clf_del_malesexchrom.predict_proba(df_malesexchrom_del_values[:, 4:])
+preds_malesexchrom_dup = clf_dup_malesexchrom.predict_proba(df_malesexchrom_dup_values[:, 4:])
+
+df_malesexchrom_del_preds_values = pd.DataFrame({"chrom": df_malesexchrom_del_values[:, 0], "start": df_malesexchrom_del_values[:, 1], "end": df_malesexchrom_del_values[:, 2], "type": df_malesexchrom_del_values[:, 3], "HOM_GENOTYPE_LIKELIHOOD": preds_malesexchrom_del[:, 0], "REF_GENOTYPE_LIKELIHOOD": preds_malesexchrom_del[:, 1]})
+df_malesexchrom_dup_preds_values = pd.DataFrame({"chrom": df_malesexchrom_dup_values[:, 0], "start": df_malesexchrom_dup_values[:, 1], "end": df_malesexchrom_dup_values[:, 2], "type": df_malesexchrom_dup_values[:, 3], "HOM_GENOTYPE_LIKELIHOOD": preds_malesexchrom_dup[:, 0], "REF_GENOTYPE_LIKELIHOOD": preds_malesexchrom_dup[:, 1]})
+# df_malesexchrom_dup_preds_values["HET_GENOTYPE_LIKELIHOOD"] = float(np.nan) 
+df_malesexchrom_dup_preds_values["HET_GENOTYPE_LIKELIHOOD"] = 0.0
+
+df_malesexchrom_preds_concat_sorted = pd.concat([df_malesexchrom_del_preds_values, df_malesexchrom_dup_preds_values]).sort_values(["chrom", "start", "end"])
+df_malesexchrom_preds_concat_sorted = df_malesexchrom_preds_concat_sorted.merge(df_male_sex_chromosomes, on = ["chrom", "start", "end", "type"], how = "left")
+df_malesexchrom_preds_concat_sorted["ALT_GENOTYPE_LIKELIHOOD"] = df_malesexchrom_preds_concat_sorted["HOM_GENOTYPE_LIKELIHOOD"]
+df_malesexchrom_preds_concat_sorted["REF_QUAL"] = -10.0*np.log10(1.0 - df_malesexchrom_preds_concat_sorted["HOM_GENOTYPE_LIKELIHOOD"])
+df_malesexchrom_preds_concat_sorted["ALT_QUAL"] = -10.0*np.log10(df_malesexchrom_preds_concat_sorted["HOM_GENOTYPE_LIKELIHOOD"])
+
+# Now concat the main dataframe with the male sex chromosome dataframe
+df_preds_concat_sorted = pd.concat([df_preds_concat_sorted, df_malesexchrom_preds_concat_sorted])
 df_sort_col = df_preds_concat_sorted[["chrom", "start", "end", "type", "size", "coverage", "coverage_GCcorrected", "discordant_ratio", "split_ratio", "snv_coverage", "heterozygous_allele_ratio", "snvs", "het_snvs", "ALT_GENOTYPE_LIKELIHOOD", "REF_QUAL", "ALT_QUAL", "HOM_GENOTYPE_LIKELIHOOD", "HET_GENOTYPE_LIKELIHOOD", "REF_GENOTYPE_LIKELIHOOD"]]
 
 # Initialize the GEN column to the missing genotype value ./.
@@ -60,7 +89,6 @@ if not args.genotype_predictions_output_tsv:
     from time import gmtime, strftime
     current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
     df_sort_col.to_csv("genotyping_preds_{}.tsv".format(current_time), sep = "\t", index = False)
-    df_male_sex_chromosomes.to_csv("genotyping_preds_male_sex_chromosome_{}.tsv".format(current_time), sep = "\t", index = False) # testing
 else: df_sort_col.to_csv(args.genotype_predictions_output_tsv, sep = "\t", index = False)
 
 # TODO:
