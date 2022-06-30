@@ -1,5 +1,5 @@
 # SV2_2
-This is a refactored version of SV2.
+This is a refactored version of SV2. Tested with Python 3.9.7.
 
 Example run command:
 ```
