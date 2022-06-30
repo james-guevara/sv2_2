@@ -2,8 +2,10 @@ import argparse
 import datetime
 import numpy as np
 import pandas as pd
+from pathlib import Path
 from pybedtools import BedTool
 import sys
+from time import gmtime, strftime
 
 # For step 1
 from make_feature_table import make_GC_content_reference_table
@@ -46,7 +48,14 @@ parser.add_argument("--genotype_predictions_output_tsv", help = "Output features
 # From make_vcf.py step
 parser.add_argument("--sample_name", help = "Sample name", required = True)
 parser.add_argument("--output_vcf", help = "Output VCF filepath (optional)")
+parser.add_argument("--output_folder", help = "Output folder for output files (optional)")
 args = parser.parse_args()
+
+# If one of the output args isn't specified, then we should make a folder called "output" to put the output files (if the folder doesn't already exist)
+output_folder = Path("sv2_output")
+if args.output_folder: output_folder = Path(args.output_folder)
+if not args.preprocessing_table_output or not args.sv_feature_output_tsv or not args.genotype_predictions_output_tsv or not args.output_vcf:
+    output_folder.mkdir(parents = True, exist_ok = True)
 
 """ make_feature_table.py step """
 
@@ -73,7 +82,12 @@ if not args.preprocessing_table_input:
     df_alignment_preprocessing_table = pd.DataFrame.from_dict(alignment_preprocessing_table, orient = "index")
     df_snv_preprocessing_table = pd.DataFrame.from_dict(snv_preprocessing_table, orient = "index")
     df_preprocessing_table = df_alignment_preprocessing_table.join(df_snv_preprocessing_table).reset_index(level = 0).rename(columns = {"index": "chrom"})
-    df_preprocessing_table.to_csv(args.preprocessing_table_output, sep = "\t", index = False)
+    if args.preprocessing_table_output:
+        preprocessing_table_filepath = args.preprocessing_table_output
+    else: 
+        current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
+        preprocessing_table_filepath =  "{}/{}_sv2_preprocessing_features_{}.tsv".format(output_folder, args.sample_name, current_time)
+    df_preprocessing_table.to_csv(preprocessing_table_filepath, sep = "\t", index = False)
 else:
     df_preprocessing_table = pd.read_csv(args.preprocessing_table_input, sep = "\t")
 
@@ -102,9 +116,8 @@ df_features_table = df_alignment_features_table.join(df_snv_features_table).rese
 
 features_table_filepath = str()
 if not args.sv_feature_output_tsv: 
-    from time import gmtime, strftime
     current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
-    features_table_filepath =  "sv2_features.{}.tsv".format(current_time)
+    features_table_filepath =  "{}/{}_sv2_features_{}.tsv".format(output_folder, args.sample_name, current_time)
 else: features_table_filepath = args.sv_feature_output_tsv
 df_features_table.to_csv(features_table_filepath, sep = "\t", index = False)
 
@@ -160,12 +173,11 @@ df_preds_concat_sorted["GEN"] = df_preds_concat_sorted[["REF_GENOTYPE_LIKELIHOOD
 
 genotype_table_filepath = str()
 if not args.genotype_predictions_output_tsv:
-    from time import gmtime, strftime
     current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
-    genotype_table_filepath = "genotyping_preds_{}.tsv".format(current_time)
+    genotype_table_filepath = "{}/{}_genotyping_preds_{}.tsv".format(output_folder, args.sample_name, current_time)
 else: 
     genotype_table_filepath = args.genotype_predictions_output_tsv
 df_preds_concat_sorted.to_csv(genotype_table_filepath, sep = "\t", index = False)
 
 """ make_vcf.py step """
-make_vcf(args.sample_name, args.reference_fasta, genotype_table_filepath, args.output_vcf)
+make_vcf(args.sample_name, args.reference_fasta, genotype_table_filepath, args.output_vcf, output_folder)

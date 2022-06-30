@@ -2,12 +2,12 @@
 # Fix positional information (converting from BED/table to VCF...)
 # I'm pretty sure the table is in BED format, meaning that we can take the CHROM, START, END, use pybedtools to wrap that as BED formatted data, and then intersect with whatever we want.
 #   When we intersect, we can specify new columns/labels and how much each SV overlaps with each type of genomic region.
-# Add sample name. (Should add to table first, and then get that...)
+import argparse
 import pysam
 import pysam.bcftools
-import argparse
+from time import gmtime, strftime
 
-def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_vcf_filepath = None):
+def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_vcf_filepath, output_folder):
     vcf_header = pysam.VariantHeader()
     vcf_header.add_sample(sample_name)
     # FILTER fields
@@ -32,7 +32,8 @@ def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_vc
     for contig, contig_length in zip(fasta.references, fasta.lengths):
         vcf_header.contigs.add(contig, length = contig_length)
 
-    vcf_filename = "{}_sv2.vcf".format(sample_name)
+    current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
+    vcf_filename = "{}/{}_sv2_{}.vcf".format(output_folder, sample_name, current_time)
     if output_vcf_filepath: vcf_filename = output_vcf_filepath
     vcf = pysam.VariantFile(vcf_filename, "w", header = vcf_header)
 
