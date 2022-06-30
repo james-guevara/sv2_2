@@ -37,25 +37,30 @@ parser.add_argument("--snv_vcf_file", help = "SNV VCF file input", required = Tr
 parser.add_argument("--regions_bed", help = "BED file with pre-generated random genomic regions (for estimating coverage per chromosome)", required = True)
 parser.add_argument("--exclude_regions_bed", help = "BED file with regions to exclude", required = True)
 parser.add_argument("--sv_bed_file", help = "SV BED file input", required = True)
-parser.add_argument("--sv_feature_output_tsv", help = "Feature table .tsv output (it will be given the default name if this arugment isn't set)")
 parser.add_argument("--preprocessing_table_input", help = "A pre-generated preprocessing table (if SV2 had been run before and you want to skip the preprocessing part of the program")
-parser.add_argument("--preprocessing_table_output", help = "Preprocessing table .tsv output (it will be given the default name if this argument isn't set)")
 parser.add_argument("--gc_reference_table", help = "GC content reference table input", required = True)
 # From classify.py step
 parser.add_argument("--sex", help = "Sex of sample: male or female", required = True)
 parser.add_argument("--clf_folder", help = "Folder that contains the classifiers, which must be in .pkl format (if not specified, will look for them in the default data folder)")
-parser.add_argument("--genotype_predictions_output_tsv", help = "Output features .tsv file with genotype predictions (it will be given default name if this argument isn't set)")
 # From make_vcf.py step
 parser.add_argument("--sample_name", help = "Sample name", required = True)
-parser.add_argument("--output_vcf", help = "Output VCF filepath (optional)")
-parser.add_argument("--output_folder", help = "Output folder for output files (optional)")
+parser.add_argument("--output_folder", help = "Output folder for output files (if not used, then output folder is set to 'sv2_output')")
 args = parser.parse_args()
+
+# If regions_bed or gc_reference_table aren't specified, we should look for them using the absolute path of this script (and these files should be found in the data folder, which is inside the same parent folder as this script)
+script_folder = Path(__file__).parent.absolute()
+regions_bed = str()
+if args.regions_bed: regions_bed = args.regions_bed
+else: regions_bed = "{}/data/random_regions_hg38.bed".format(script_folder)
+gc_reference_table = str()
+if args.gc_reference_table: gc_reference_table = args.gc_reference_table
+else: gc_reference_table = "{}/data/GC_content_reference.txt".format(script_folder)
+
 
 # If one of the output args isn't specified, then we should make a folder called "output" to put the output files (if the folder doesn't already exist)
 output_folder = Path("sv2_output")
 if args.output_folder: output_folder = Path(args.output_folder)
-if not args.preprocessing_table_output or not args.sv_feature_output_tsv or not args.genotype_predictions_output_tsv or not args.output_vcf:
-    output_folder.mkdir(parents = True, exist_ok = True)
+output_folder.mkdir(parents = True, exist_ok = True)
 
 """ make_feature_table.py step """
 
@@ -69,7 +74,7 @@ svtypes = ("DEL", "DUP")
 # Make the GC content reference table
 GC_content_reference_table = make_GC_content_reference_table(args.gc_reference_table)
 # Make the regions table (used to estimate coverage)
-regions_table = make_regions_table(args.regions_bed)
+regions_table = make_regions_table(regions_bed)
 
 if not args.preprocessing_table_input:
     # Make the CRAM/BAM preprocessing table
@@ -82,11 +87,10 @@ if not args.preprocessing_table_input:
     df_alignment_preprocessing_table = pd.DataFrame.from_dict(alignment_preprocessing_table, orient = "index")
     df_snv_preprocessing_table = pd.DataFrame.from_dict(snv_preprocessing_table, orient = "index")
     df_preprocessing_table = df_alignment_preprocessing_table.join(df_snv_preprocessing_table).reset_index(level = 0).rename(columns = {"index": "chrom"})
-    if args.preprocessing_table_output:
-        preprocessing_table_filepath = args.preprocessing_table_output
-    else: 
-        current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
-        preprocessing_table_filepath =  "{}/{}_sv2_preprocessing_features_{}.tsv".format(output_folder, args.sample_name, current_time)
+
+    # Save preprocessing table to output folder
+    current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
+    preprocessing_table_filepath =  "{}/{}_sv2_preprocessing_features_{}.tsv".format(output_folder, args.sample_name, current_time)
     df_preprocessing_table.to_csv(preprocessing_table_filepath, sep = "\t", index = False)
 else:
     df_preprocessing_table = pd.read_csv(args.preprocessing_table_input, sep = "\t")
@@ -114,11 +118,9 @@ df_alignment_features_table = pd.DataFrame.from_dict(alignment_features_table, o
 df_snv_features_table = pd.DataFrame.from_dict(snv_features_table, orient = "index")
 df_features_table = df_alignment_features_table.join(df_snv_features_table).reset_index().rename(columns = {"level_0": "chrom", "level_1": "start", "level_2": "end"})
 
-features_table_filepath = str()
-if not args.sv_feature_output_tsv: 
-    current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
-    features_table_filepath =  "{}/{}_sv2_features_{}.tsv".format(output_folder, args.sample_name, current_time)
-else: features_table_filepath = args.sv_feature_output_tsv
+# Save SV features table
+current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
+features_table_filepath =  "{}/{}_sv2_features_{}.tsv".format(output_folder, args.sample_name, current_time)
 df_features_table.to_csv(features_table_filepath, sep = "\t", index = False)
 
 """ classify.py step """
@@ -171,13 +173,10 @@ df_preds_concat_sorted = df_preds_concat_sorted[["chrom", "start", "end", "type"
 df_preds_concat_sorted["GEN"] = "./."
 df_preds_concat_sorted["GEN"] = df_preds_concat_sorted[["REF_GENOTYPE_LIKELIHOOD", "HET_GENOTYPE_LIKELIHOOD", "HOM_GENOTYPE_LIKELIHOOD"]].apply(lambda x: get_genotype(*x), axis = 1)
 
-genotype_table_filepath = str()
-if not args.genotype_predictions_output_tsv:
-    current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
-    genotype_table_filepath = "{}/{}_genotyping_preds_{}.tsv".format(output_folder, args.sample_name, current_time)
-else: 
-    genotype_table_filepath = args.genotype_predictions_output_tsv
+# Save genotype predictions table
+current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
+genotype_table_filepath = "{}/{}_genotyping_preds_{}.tsv".format(output_folder, args.sample_name, current_time)
 df_preds_concat_sorted.to_csv(genotype_table_filepath, sep = "\t", index = False)
 
 """ make_vcf.py step """
-make_vcf(args.sample_name, args.reference_fasta, genotype_table_filepath, args.output_vcf, output_folder)
+make_vcf(args.sample_name, args.reference_fasta, genotype_table_filepath, output_folder)

@@ -7,7 +7,7 @@ import pysam
 import pysam.bcftools
 from time import gmtime, strftime
 
-def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_vcf_filepath, output_folder):
+def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_folder):
     vcf_header = pysam.VariantHeader()
     vcf_header.add_sample(sample_name)
     # FILTER fields
@@ -34,7 +34,6 @@ def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_vc
 
     current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
     vcf_filename = "{}/{}_sv2_{}.vcf".format(output_folder, sample_name, current_time)
-    if output_vcf_filepath: vcf_filename = output_vcf_filepath
     vcf = pysam.VariantFile(vcf_filename, "w", header = vcf_header)
 
     # with open("genotyping_preds2022-06-03_23.36.29.tsv", "r") as f:
@@ -71,7 +70,7 @@ if __name__ == "__main__":
     parser.add_argument("--genotype_predictions_table", help = "Genotype predictions output .tsv file from classify.py step")
     parser.add_argument("--reference_fasta", help = "Reference fasta file input")
     parser.add_argument("--sample_name", help = "Sample name")
-    parser.add_argument("--output_vcf", help = "Output VCF filepath (optional)")
+    parser.add_argument("--output_folder", help = "Output folder (optional)")
     args = parser.parse_args()
 
-    make_vcf(args.sample_name, args.reference_fasta, args.genotype_predictions_table, args.output_vcf)
+    make_vcf(args.sample_name, args.reference_fasta, args.genotype_predictions_table, args.output_folder)
