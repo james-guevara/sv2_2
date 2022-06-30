@@ -47,15 +47,17 @@ parser.add_argument("--sample_name", help = "Sample name", required = True)
 parser.add_argument("--output_folder", help = "Output folder for output files (if not used, then output folder is set to 'sv2_output')")
 args = parser.parse_args()
 
+
 # If regions_bed or gc_reference_table aren't specified, we should look for them using the absolute path of this script (and these files should be found in the data folder, which is inside the same parent folder as this script)
 script_folder = Path(__file__).parent.absolute()
+# If the script we're running is a symbolic link, we should read the link to get the real abosolute location of the script
+if Path(__file__).is_symlink(): script_folder = Path(__file__).readlink().parent.absolute()
 regions_bed = str()
 if args.regions_bed: regions_bed = args.regions_bed
 else: regions_bed = "{}/data/random_regions_hg38.bed".format(script_folder)
 gc_reference_table = str()
 if args.gc_reference_table: gc_reference_table = args.gc_reference_table
 else: gc_reference_table = "{}/data/GC_content_reference.txt".format(script_folder)
-
 
 # If one of the output args isn't specified, then we should make a folder called "output" to put the output files (if the folder doesn't already exist)
 output_folder = Path("sv2_output")
@@ -75,6 +77,7 @@ svtypes = ("DEL", "DUP")
 GC_content_reference_table = make_GC_content_reference_table(gc_reference_table)
 # Make the regions table (used to estimate coverage)
 regions_table = make_regions_table(regions_bed)
+
 
 if not args.preprocessing_table_input:
     # Make the CRAM/BAM preprocessing table
