@@ -12,9 +12,13 @@ python run_sv2.py --alignment_file /expanse/projects/sebat1/genomicsdataanalysis
                   --sample_name NA12878
 ```
 
+As of now, we're targeting only reference genome hg38. We can also make it usable for hg19 and other reference types later.
+
 ## To do
 - [ ] Test on `HG002` and `NA12878` and some of `REACH` cohort
 - [ ] Run from different compute environments/folders
+- [ ] Once ROC curves are generated and analyzed, we have to decide on FILTER flag criteria
+- [ ] There might be (un)subtle bugs when generating QUAL scores or even genotype likelihoods, need to catch those
 - [x] Add SV2 commands to VCF 
 - [x] Default output files should include sample name 
 - [x] Automatic find the `regions_bed` and `gc_reference_table` (reduce number of command line arguments)
