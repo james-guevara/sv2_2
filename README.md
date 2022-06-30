@@ -9,7 +9,7 @@ python run_sv2.py --alignment_file /expanse/projects/sebat1/genomicsdataanalysis
                   --exclude_regions_bed data/excluded_regions_bed_files/hg38_excluded.bed.gz \
                   --sv_bed_file data/test_data/file.nbl.test2.bed \
                   --sex male \
-                  --sample_name NA12878 \
+                  --sample_name NA12878
 ```
 
 ## To do
