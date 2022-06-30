@@ -1,4 +1,4 @@
-# SV2 
+# SV2_2
 This is a refactored version of SV2.
 
 Example run command:
