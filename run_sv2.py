@@ -34,11 +34,11 @@ parser = argparse.ArgumentParser(description = "SV2 genotyper")
 parser.add_argument("--alignment_file", help = "CRAM/BAM file input", required = True)
 parser.add_argument("--reference_fasta", help = "Reference fasta file input", required = True)
 parser.add_argument("--snv_vcf_file", help = "SNV VCF file input", required = True)
-parser.add_argument("--regions_bed", help = "BED file with pre-generated random genomic regions (for estimating coverage per chromosome)", required = True)
+parser.add_argument("--regions_bed", help = "BED file with pre-generated random genomic regions (for estimating coverage per chromosome)")
 parser.add_argument("--exclude_regions_bed", help = "BED file with regions to exclude", required = True)
 parser.add_argument("--sv_bed_file", help = "SV BED file input", required = True)
 parser.add_argument("--preprocessing_table_input", help = "A pre-generated preprocessing table (if SV2 had been run before and you want to skip the preprocessing part of the program")
-parser.add_argument("--gc_reference_table", help = "GC content reference table input", required = True)
+parser.add_argument("--gc_reference_table", help = "GC content reference table input")
 # From classify.py step
 parser.add_argument("--sex", help = "Sex of sample: male or female", required = True)
 parser.add_argument("--clf_folder", help = "Folder that contains the classifiers, which must be in .pkl format (if not specified, will look for them in the default data folder)")
@@ -72,7 +72,7 @@ chroms.extend(["X", "Y"])
 svtypes = ("DEL", "DUP")
 
 # Make the GC content reference table
-GC_content_reference_table = make_GC_content_reference_table(args.gc_reference_table)
+GC_content_reference_table = make_GC_content_reference_table(gc_reference_table)
 # Make the regions table (used to estimate coverage)
 regions_table = make_regions_table(regions_bed)
 
