@@ -18,7 +18,8 @@ python run_sv2.py --alignment_file /expanse/projects/sebat1/genomicsdataanalysis
 ## To do
 - [ ] Test on `HG002` and `NA12878` and some of `REACH` cohort
 - [x] Default output files should include sample name 
-- [ ] Automatic find the `regions_bed` and `gc_reference_table` (reduce number of command line arguments)
-- [ ] Make exclude bed file optional? 
+- [x] Automatic find the `regions_bed` and `gc_reference_table` (reduce number of command line arguments)
+- [x] Make exclude bed file optional? 
 - [ ] Run from different compute environments/folders
-- [x] Put requirements.txt file in here
+- [x] Put requirements.txt file in here 
+- [ ] Test when run_sv2.py is a symbolic link

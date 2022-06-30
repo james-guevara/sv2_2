@@ -35,7 +35,7 @@ parser.add_argument("--alignment_file", help = "CRAM/BAM file input", required =
 parser.add_argument("--reference_fasta", help = "Reference fasta file input", required = True)
 parser.add_argument("--snv_vcf_file", help = "SNV VCF file input", required = True)
 parser.add_argument("--regions_bed", help = "BED file with pre-generated random genomic regions (for estimating coverage per chromosome)")
-parser.add_argument("--exclude_regions_bed", help = "BED file with regions to exclude", required = True)
+parser.add_argument("--exclude_regions_bed", help = "BED file with regions to exclude")
 parser.add_argument("--sv_bed_file", help = "SV BED file input", required = True)
 parser.add_argument("--preprocessing_table_input", help = "A pre-generated preprocessing table (if SV2 had been run before and you want to skip the preprocessing part of the program")
 parser.add_argument("--gc_reference_table", help = "GC content reference table input")
@@ -104,7 +104,9 @@ with open(args.sv_bed_file, "r") as f:
         if start > stop: continue
         sv_bed_list.append(line.rstrip())
 sv_bed = BedTool(sv_bed_list).filter(lambda x: len(x) > 0).saveas()
-exclude_bed = BedTool(args.exclude_regions_bed).merge()
+# Create a dummy BedTool for when it's not specified as an argument (i.e. the user doesn't want to use it). I have to do it this way because it doesn't work when I just create an empty BedTool...
+exclude_bed = BedTool("chrZ 0 1", from_string = True)
+if args.exclude_regions_bed: exclude_bed = BedTool(args.exclude_regions_bed).merge()
 sv_interval_table = make_sv_interval_table(sv_bed, exclude_bed, args.reference_fasta)
 
 # Make SNV features table (for each filtered SV call)
