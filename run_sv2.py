@@ -1,6 +1,25 @@
 import sys
 import argparse
 import datetime
+# For step 1
+from make_feature_table import make_GC_content_reference_table
+from make_feature_table import make_regions_table  
+from make_feature_table import make_alignment_preprocessing_table  
+from make_feature_table import get_snv_preprocessing_data
+from make_feature_table import make_sv_interval_table 
+from make_feature_table import make_snv_features_table 
+from make_feature_table import make_alignment_features_table
+# For step 2
+from classify import load_features_from_dataframe
+from classify import run_highcov_del_gt1kb_classifier 
+from classify import run_highcov_del_lt1kb_classifier 
+from classify import run_dup_breakpoint_classifier
+from classify import run_dup_har_classifier 
+from classify import concat_and_sort_pred_dfs
+from classify import run_malesexchrom_del_classifier 
+from classify import run_malesexchrom_dup_classifier 
+# For step 3
+from make_vcf import make_vcf
 
 parser = argparse.ArgumentParser(description = "SV2 genotyper")
 # From make_feature_table.py step
@@ -22,6 +41,8 @@ parser.add_argument("--genotype_predictions_output_tsv", help = "Output features
 parser.add_argument("--sample_name", help = "Sample name")
 parser.add_argument("--output_vcf", help = "Output VCF filepath (optional)")
 args = parser.parse_args()
+
+""" make_feature_table.py step """
 
 # Chromosomes to analyze (1,... 22, X, Y)
 chroms = list(map(str, np.arange(1, 22 + 1)))
@@ -79,6 +100,8 @@ if not args.sv_feature_output_tsv:
     df_features_table.to_csv("sv2_features.{}.tsv".format(current_time), sep = "\t", index = False)
 else: df_features_table.to_csv(args.sv_feature_output_tsv, sep = "\t", index = False)
 
+""" classify.py step """
+
 df, df_male_sex_chromosomes = load_features_from_dataframe(df_features_table, args.sex)
 
 # Set default filepaths for the classifiers
@@ -135,4 +158,5 @@ else:
     genotype_table_filepath = args.genotype_predictions_output_tsv
 df_preds_concat_sorted.to_csv(genotype_table_filepath, sep = "\t", index = False)
 
+""" make_vcf.py step """
 make_vcf(args.sample_name, args.reference_fasta, genotype_table_filepath, args.output_vcf)
