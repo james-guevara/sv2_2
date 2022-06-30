@@ -1,4 +1,4 @@
-# SV2 
+## SV2 
 This is a refactored version of SV2.
 
 Example run command:
@@ -14,3 +14,11 @@ python run_sv2.py --alignment_file /expanse/projects/sebat1/genomicsdataanalysis
                   --sample_name NA12878 \
                   --output_vcf NA12878_sv2.vcf
 ```
+
+# To do
+- [ ] Test on `HG002` and `NA12878` and some of `REACH` cohort
+- [ ] Default output files should include sample name 
+- [ ] Automatic find the `regions_bed` and `gc_reference_table` (reduce number of command line arguments)
+- [ ] Make exclude bed file optional? 
+- [ ] Run from different compute environments/folders
+- [ ] Put requirements.txt file in here
