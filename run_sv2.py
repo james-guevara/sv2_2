@@ -47,6 +47,7 @@ parser.add_argument("--sample_name", help = "Sample name", required = True)
 parser.add_argument("--output_folder", help = "Output folder for output files (if not used, then output folder is set to 'sv2_output')")
 args = parser.parse_args()
 
+sv2_command = " ".join(sys.argv)
 
 # If regions_bed or gc_reference_table aren't specified, we should look for them using the absolute path of this script (and these files should be found in the data folder, which is inside the same parent folder as this script)
 script_folder = Path(__file__).parent.absolute()
@@ -184,4 +185,4 @@ genotype_table_filepath = "{}/{}_genotyping_preds_{}.tsv".format(output_folder, 
 df_preds_concat_sorted.to_csv(genotype_table_filepath, sep = "\t", index = False)
 
 """ make_vcf.py step """
-make_vcf(args.sample_name, args.reference_fasta, genotype_table_filepath, output_folder)
+make_vcf(args.sample_name, args.reference_fasta, genotype_table_filepath, output_folder, sv2_command)

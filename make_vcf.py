@@ -7,9 +7,10 @@ import pysam
 import pysam.bcftools
 from time import gmtime, strftime
 
-def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_folder):
+def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_folder, sv2_command):
     vcf_header = pysam.VariantHeader()
     vcf_header.add_sample(sample_name)
+    vcf_header.add_line("##SV2_CMD='{}'".format(sv2_command))
     # FILTER fields
     vcf_header.add_meta("FILTER", items = [ ("ID", "RF"), ("Description", "Variant filed filter due to low RF") ] )
     # INFO fields
