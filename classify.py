@@ -20,7 +20,7 @@ def load_features(features_table_filepath, sex):
         df = df[~mask]
     return df, df_male_sex_chromosomes
 
-def load_features_from_dataframe(df_original, sex)
+def load_features_from_dataframe(df_original, sex):
     df = df_original 
     df_male_sex_chromosomes = pd.DataFrame(columns = df.columns)
     if sex == "male":

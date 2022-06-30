@@ -1,6 +1,10 @@
-import sys
 import argparse
 import datetime
+import numpy as np
+import pandas as pd
+from pybedtools import BedTool
+import sys
+
 # For step 1
 from make_feature_table import make_GC_content_reference_table
 from make_feature_table import make_regions_table  
@@ -10,6 +14,7 @@ from make_feature_table import make_sv_interval_table
 from make_feature_table import make_snv_features_table 
 from make_feature_table import make_alignment_features_table
 # For step 2
+from classify import load_features
 from classify import load_features_from_dataframe
 from classify import run_highcov_del_gt1kb_classifier 
 from classify import run_highcov_del_lt1kb_classifier 
@@ -18,27 +23,28 @@ from classify import run_dup_har_classifier
 from classify import concat_and_sort_pred_dfs
 from classify import run_malesexchrom_del_classifier 
 from classify import run_malesexchrom_dup_classifier 
+from classify import get_genotype 
 # For step 3
 from make_vcf import make_vcf
 
 parser = argparse.ArgumentParser(description = "SV2 genotyper")
 # From make_feature_table.py step
-parser.add_argument("--alignment_file", help = "CRAM/BAM file input")
-parser.add_argument("--reference_fasta", help = "Reference fasta file input")
-parser.add_argument("--snv_vcf_file", help = "SNV VCF file input")
-parser.add_argument("--regions_bed", help = "BED file with pre-generated random genomic regions (for estimating coverage per chromosome)")
-parser.add_argument("--exclude_regions_bed", help = "BED file with pre-generated random genomic regions (for estimating coverage per chromosome)")
-parser.add_argument("--sv_bed_file", help = "SV BED file input")
+parser.add_argument("--alignment_file", help = "CRAM/BAM file input", required = True)
+parser.add_argument("--reference_fasta", help = "Reference fasta file input", required = True)
+parser.add_argument("--snv_vcf_file", help = "SNV VCF file input", required = True)
+parser.add_argument("--regions_bed", help = "BED file with pre-generated random genomic regions (for estimating coverage per chromosome)", required = True)
+parser.add_argument("--exclude_regions_bed", help = "BED file with regions to exclude", required = True)
+parser.add_argument("--sv_bed_file", help = "SV BED file input", required = True)
 parser.add_argument("--sv_feature_output_tsv", help = "Feature table .tsv output (it will be given the default name if this arugment isn't set)")
 parser.add_argument("--preprocessing_table_input", help = "A pre-generated preprocessing table (if SV2 had been run before and you want to skip the preprocessing part of the program")
 parser.add_argument("--preprocessing_table_output", help = "Preprocessing table .tsv output (it will be given the default name if this argument isn't set)")
-parser.add_argument("--gc_reference_table", help = "GC content reference table input")
+parser.add_argument("--gc_reference_table", help = "GC content reference table input", required = True)
 # From classify.py step
-parser.add_argument("--sex", help = "Sex of sample: male or female")
-parser.add_argument("--clf_folder", help = "Folder that contains the classifiers (classifiers must be in .pkl format)")
-parser.add_argument("--genotype_predictions_output_tsv", help = "Output features .tsv file with genotype predictions")
+parser.add_argument("--sex", help = "Sex of sample: male or female", required = True)
+parser.add_argument("--clf_folder", help = "Folder that contains the classifiers, which must be in .pkl format (if not specified, will look for them in the default data folder)")
+parser.add_argument("--genotype_predictions_output_tsv", help = "Output features .tsv file with genotype predictions (it will be given default name if this argument isn't set)")
 # From make_vcf.py step
-parser.add_argument("--sample_name", help = "Sample name")
+parser.add_argument("--sample_name", help = "Sample name", required = True)
 parser.add_argument("--output_vcf", help = "Output VCF filepath (optional)")
 args = parser.parse_args()
 
@@ -52,16 +58,16 @@ chroms.extend(["X", "Y"])
 svtypes = ("DEL", "DUP")
 
 # Make the GC content reference table
-GC_content_reference_table = make_GC_content_reference_table(GC_content_reference_table_filepath)
+GC_content_reference_table = make_GC_content_reference_table(args.gc_reference_table)
 # Make the regions table (used to estimate coverage)
 regions_table = make_regions_table(args.regions_bed)
 
 if not args.preprocessing_table_input:
     # Make the CRAM/BAM preprocessing table
-    alignment_preprocessing_table = make_alignment_preprocessing_table(args.alignment_file, args.reference_fasta)
+    alignment_preprocessing_table = make_alignment_preprocessing_table(args.alignment_file, args.reference_fasta, chroms, regions_table)
     
     # Make the SNV preprocessing table
-    snv_preprocessing_table = get_snv_preprocessing_data(args.snv_vcf_file)
+    snv_preprocessing_table = get_snv_preprocessing_data(args.snv_vcf_file, chroms, regions_table)
 
     # Merge and output the preprocessing table
     df_alignment_preprocessing_table = pd.DataFrame.from_dict(alignment_preprocessing_table, orient = "index")
@@ -81,28 +87,31 @@ with open(args.sv_bed_file, "r") as f:
         sv_bed_list.append(line.rstrip())
 sv_bed = BedTool(sv_bed_list).filter(lambda x: len(x) > 0).saveas()
 exclude_bed = BedTool(args.exclude_regions_bed).merge()
-sv_interval_table = make_sv_interval_table(sv_bed, exclude_bed)
+sv_interval_table = make_sv_interval_table(sv_bed, exclude_bed, args.reference_fasta)
 
 # Make SNV features table (for each filtered SV call)
-snv_features_table = make_snv_features_table(args.snv_vcf_file, sv_bed)
+snv_features_table = make_snv_features_table(args.snv_vcf_file, sv_bed, sv_interval_table, svtypes, df_preprocessing_table)
 
 # Make CRAM/BAM features table (for each filtered SV call)
-alignment_features_table = make_alignment_features_table(args.alignment_file, args.reference_fasta, sv_bed)
+alignment_features_table = make_alignment_features_table(args.alignment_file, args.reference_fasta, sv_bed, df_preprocessing_table, sv_interval_table, svtypes, GC_content_reference_table)
 
 # Merge and output feature table
 df_alignment_features_table = pd.DataFrame.from_dict(alignment_features_table, orient = "index")
 df_snv_features_table = pd.DataFrame.from_dict(snv_features_table, orient = "index")
 df_features_table = df_alignment_features_table.join(df_snv_features_table).reset_index().rename(columns = {"level_0": "chrom", "level_1": "start", "level_2": "end"})
 
+features_table_filepath = str()
 if not args.sv_feature_output_tsv: 
     from time import gmtime, strftime
     current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
-    df_features_table.to_csv("sv2_features.{}.tsv".format(current_time), sep = "\t", index = False)
-else: df_features_table.to_csv(args.sv_feature_output_tsv, sep = "\t", index = False)
+    features_table_filepath =  "sv2_features.{}.tsv".format(current_time)
+else: features_table_filepath = args.sv_feature_output_tsv
+df_features_table.to_csv(features_table_filepath, sep = "\t", index = False)
 
 """ classify.py step """
 
-df, df_male_sex_chromosomes = load_features_from_dataframe(df_features_table, args.sex)
+# df, df_male_sex_chromosomes = load_features_from_dataframe(df_features_table, args.sex)
+df, df_male_sex_chromosomes = load_features(features_table_filepath, args.sex)
 
 # Set default filepaths for the classifiers
 clf_highcov_del_gt1kb_filepath = "data/trained_classifiers/clf_del_gt1kb.pkl"

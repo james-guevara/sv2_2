@@ -29,7 +29,7 @@ def make_regions_table(bed_regions_filepath):
     return regions_table 
 
 # Get the alignment preprocessing data (coverage, median read lengths, median insert sizes, etc.):
-def make_alignment_preprocessing_table(alignment_filepath, reference_filepath):
+def make_alignment_preprocessing_table(alignment_filepath, reference_filepath, chroms, regions_table):
     alignment_preprocessing_table = {}
 
     genome_coverage_values: list[int] = []
@@ -103,7 +103,7 @@ def make_alignment_preprocessing_table(alignment_filepath, reference_filepath):
 
 
 # Get the SNV preprocessing data (from the SNV VCF):
-def get_snv_preprocessing_data(snv_vcf_filepath):
+def get_snv_preprocessing_data(snv_vcf_filepath, chroms, regions_table):
     snv_preprocessing_table = {} 
     snv_vcf_iterator = pysam.VariantFile(snv_vcf_filepath, mode = "r") 
     for chrom in snv_vcf_iterator.header.contigs:
@@ -137,7 +137,7 @@ def get_snv_preprocessing_data(snv_vcf_filepath):
 
 
 # Make an sv_interval_table that excludes the exclude_bed and contains the GC content per region
-def make_sv_interval_table(sv_bed, exclude_bed):
+def make_sv_interval_table(sv_bed, exclude_bed, reference_fasta):
     # Add ID to fourth column of BED file 
     sv_list = []
     for index, sv in enumerate(sv_bed): 
@@ -154,7 +154,7 @@ def make_sv_interval_table(sv_bed, exclude_bed):
     sv_slop_left_flank_bed = BedTool.from_dataframe(sv_slop_left_flank_df)
     sv_slop_right_flank_bed = BedTool.from_dataframe(sv_slop_right_flank_df)
 
-    sv_subtract_exclude_and_nucleotide_content_bed = sv_list_bed.subtract(exclude_bed).nucleotide_content(fi = reference_filepath)
+    sv_subtract_exclude_and_nucleotide_content_bed = sv_list_bed.subtract(exclude_bed).nucleotide_content(fi = reference_fasta)
     sv_slop_left_flank_exclude_bed = sv_slop_left_flank_bed.subtract(exclude_bed)
     sv_slop_right_flank_exclude_bed = sv_slop_right_flank_bed.subtract(exclude_bed)
 
@@ -191,7 +191,7 @@ def make_sv_interval_table(sv_bed, exclude_bed):
             sv_interval_table[(chrom, start, end, svtype)]["WINDOWS"].append((sv[0], int(sv[1]), int(sv[2])))
     return sv_interval_table
 
-def make_snv_features_table(snv_vcf_filepath, sv_bed):
+def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes, df_preprocessing_table):
     snv_features_table = {}
     snv_vcf_iterator = pysam.VariantFile(snv_vcf_filepath)
     for sv in sv_bed:
@@ -237,7 +237,7 @@ def make_snv_features_table(snv_vcf_filepath, sv_bed):
 
     return snv_features_table
 
-def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed):
+def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed, df_preprocessing_table, sv_interval_table, svtypes, GC_content_reference_table):
     def calculate_gc_content_fraction(sv_interval_table_nucleotide_content_list):
         # https://daler.github.io/pybedtools/autodocs/pybedtools.bedtool.BedTool.nucleotide_content.html
         # The elements in each sublist are as follows: 
@@ -406,10 +406,10 @@ if __name__ == "__main__":
     snv_vcf_filepath = args.snv_vcf_file
     if not args.preprocessing_table_input:
         # Make the CRAM/BAM preprocessing table
-        alignment_preprocessing_table = make_alignment_preprocessing_table(alignment_filepath, reference_filepath)
+        alignment_preprocessing_table = make_alignment_preprocessing_table(alignment_filepath, reference_filepath, chroms, regions_table)
         
         # Make the SNV preprocessing table
-        snv_preprocessing_table = get_snv_preprocessing_data(snv_vcf_filepath)
+        snv_preprocessing_table = get_snv_preprocessing_data(snv_vcf_filepath, chroms, regions_table)
     
         # Merge and output the preprocessing table
         df_alignment_preprocessing_table = pd.DataFrame.from_dict(alignment_preprocessing_table, orient = "index")
@@ -431,13 +431,13 @@ if __name__ == "__main__":
             sv_bed_list.append(line.rstrip())
     sv_bed = BedTool(sv_bed_list).filter(lambda x: len(x) > 0).saveas()
     exclude_bed = BedTool(args.exclude_regions_bed).merge()
-    sv_interval_table = make_sv_interval_table(sv_bed, exclude_bed)
+    sv_interval_table = make_sv_interval_table(sv_bed, exclude_bed, args.reference_fasta)
 
     # Make SNV features table (for each filtered SV call)
-    snv_features_table = make_snv_features_table(snv_vcf_filepath, sv_bed)
+    snv_features_table = make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes, df_preprocessing_table)
     
     # Make CRAM/BAM features table (for each filtered SV call)
-    alignment_features_table = make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed)
+    alignment_features_table = make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed, df_preprocessing_table, sv_interval_table, svtypes, GC_content_reference_table)
     
     # Merge and output feature table
     df_alignment_features_table = pd.DataFrame.from_dict(alignment_features_table, orient = "index")
