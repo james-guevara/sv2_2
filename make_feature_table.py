@@ -138,6 +138,15 @@ def get_snv_preprocessing_data(snv_vcf_filepath, chroms, regions_table):
 
 # Make an sv_interval_table that excludes the exclude_bed and contains the GC content per region
 def make_sv_interval_table(sv_bed, exclude_bed, reference_fasta):
+    def make_sv_interval_table_items(bed, item_name, sv_interval_table):
+        for sv in bed:
+            ID = sv[3].split(";")[-1].split("#")
+            chrom, start, end, svtype = ID[0], int(ID[1]), int(ID[2]), ID[3]
+            if (chrom, start, end, svtype) in sv_interval_table:
+                sv_interval_table[(chrom, start, end, svtype)][item_name].append((sv[0], int(sv[1]), int(sv[2])))
+        return sv_interval_table
+
+
     # Add ID to fourth column of BED file 
     sv_list = []
     for index, sv in enumerate(sv_bed): 
@@ -167,28 +176,13 @@ def make_sv_interval_table(sv_bed, exclude_bed, reference_fasta):
         if (chrom, start, end, svtype) not in sv_interval_table: sv_interval_table[(chrom, start, end, svtype)] = {"SV_SPAN": [], "FLANK_SPAN": [], "WINDOWS": [], "nucleotide_content": []}
         sv_interval_table[(chrom, start, end, svtype)]["SV_SPAN"].append((sv[0], int(sv[1]), int(sv[2])))
         sv_interval_table[(chrom, start, end, svtype)]["nucleotide_content"].append((float(sv[4]), float(sv[5]), int(sv[6]), int(sv[7]), int(sv[8]), int(sv[9]), int(sv[10]), int(sv[11]), int(sv[12])))
+
     # Get flank spans too
-    for sv in sv_slop_left_flank_exclude_bed:
-        ID = sv[3].split(";")[-1].split("#")
-        chrom, start, end, svtype = ID[0], int(ID[1]), int(ID[2]), ID[3]
-        if (chrom, start, end, svtype) in sv_interval_table:
-            sv_interval_table[(chrom, start, end, svtype)]["FLANK_SPAN"].append((sv[0], int(sv[1]), int(sv[2])))
-    for sv in sv_slop_right_flank_exclude_bed:
-        ID = sv[3].split(";")[-1].split("#")
-        chrom, start, end, svtype = ID[0], int(ID[1]), int(ID[2]), ID[3]
-        if (chrom, start, end, svtype) in sv_interval_table:
-            sv_interval_table[(chrom, start, end, svtype)]["FLANK_SPAN"].append((sv[0], int(sv[1]), int(sv[2])))
-    # Might as well get original windows...
-    for sv in sv_slop_left_flank_bed:
-        ID = sv[3].split(";")[-1].split("#")
-        chrom, start, end, svtype = ID[0], int(ID[1]), int(ID[2]), ID[3]
-        if (chrom, start, end, svtype) in sv_interval_table:
-            sv_interval_table[(chrom, start, end, svtype)]["WINDOWS"].append((sv[0], int(sv[1]), int(sv[2])))
-    for sv in sv_slop_right_flank_bed:
-        ID = sv[3].split(";")[-1].split("#")
-        chrom, start, end, svtype = ID[0], int(ID[1]), int(ID[2]), ID[3]
-        if (chrom, start, end, svtype) in sv_interval_table:
-            sv_interval_table[(chrom, start, end, svtype)]["WINDOWS"].append((sv[0], int(sv[1]), int(sv[2])))
+    sv_interval_table = make_sv_interval_table_items(sv_slop_left_flank_exclude_bed,  "FLANK_SPAN", sv_interval_table)
+    sv_interval_table = make_sv_interval_table_items(sv_slop_right_flank_exclude_bed, "FLANK_SPAN", sv_interval_table)
+    # Get windows too
+    sv_interval_table = make_sv_interval_table_items(sv_slop_left_flank_bed,  "WINDOWS", sv_interval_table)
+    sv_interval_table = make_sv_interval_table_items(sv_slop_right_flank_bed, "WINDOWS", sv_interval_table)
     return sv_interval_table
 
 def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes, df_preprocessing_table):
