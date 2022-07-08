@@ -177,7 +177,7 @@ df_preds_concat_sorted = df_preds_concat_sorted[["chrom", "start", "end", "type"
 
 # Initialize the GEN column to the missing genotype value ./.
 df_preds_concat_sorted["GEN"] = "./."
-df_preds_concat_sorted["GEN"] = df_preds_concat_sorted[["REF_GENOTYPE_LIKELIHOOD", "HET_GENOTYPE_LIKELIHOOD", "HOM_GENOTYPE_LIKELIHOOD"]].apply(lambda x: get_genotype(*x), axis = 1)
+if not df_preds_concat_sorted.empty: df_preds_concat_sorted["GEN"] = df_preds_concat_sorted[["REF_GENOTYPE_LIKELIHOOD", "HET_GENOTYPE_LIKELIHOOD", "HOM_GENOTYPE_LIKELIHOOD"]].apply(lambda x: get_genotype(*x), axis = 1)
 
 # Save genotype predictions table
 current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())

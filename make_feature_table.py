@@ -141,7 +141,7 @@ def make_sv_interval_table(sv_bed, exclude_bed, reference_fasta):
     # Add ID to fourth column of BED file 
     sv_list = []
     for index, sv in enumerate(sv_bed): 
-        ID = "_".join([sv[0], sv[1], sv[2], sv[3]])
+        ID = "#".join([sv[0], sv[1], sv[2], sv[3]])
         sv_list.append([sv[0], sv[1], sv[2], sv[3] + ";" + ID])
     sv_list_bed = BedTool(sv_list)
     sv_slop_bed = sv_list_bed.slop(l = 500, r = 500, genome = "hg38")
@@ -161,7 +161,7 @@ def make_sv_interval_table(sv_bed, exclude_bed, reference_fasta):
     svtypes = ("DEL", "DUP")
     sv_interval_table = {}
     for index, sv in enumerate(sv_subtract_exclude_and_nucleotide_content_bed):
-        ID = sv[3].split(";")[-1].split("_")
+        ID = sv[3].split(";")[-1].split("#")
         chrom, start, end, svtype = ID[0], int(ID[1]), int(ID[2]), ID[3]
         if svtype not in svtypes: continue
         if (chrom, start, end, svtype) not in sv_interval_table: sv_interval_table[(chrom, start, end, svtype)] = {"SV_SPAN": [], "FLANK_SPAN": [], "WINDOWS": [], "nucleotide_content": []}
@@ -169,23 +169,23 @@ def make_sv_interval_table(sv_bed, exclude_bed, reference_fasta):
         sv_interval_table[(chrom, start, end, svtype)]["nucleotide_content"].append((float(sv[4]), float(sv[5]), int(sv[6]), int(sv[7]), int(sv[8]), int(sv[9]), int(sv[10]), int(sv[11]), int(sv[12])))
     # Get flank spans too
     for sv in sv_slop_left_flank_exclude_bed:
-        ID = sv[3].split(";")[-1].split("_")
+        ID = sv[3].split(";")[-1].split("#")
         chrom, start, end, svtype = ID[0], int(ID[1]), int(ID[2]), ID[3]
         if (chrom, start, end, svtype) in sv_interval_table:
             sv_interval_table[(chrom, start, end, svtype)]["FLANK_SPAN"].append((sv[0], int(sv[1]), int(sv[2])))
     for sv in sv_slop_right_flank_exclude_bed:
-        ID = sv[3].split(";")[-1].split("_")
+        ID = sv[3].split(";")[-1].split("#")
         chrom, start, end, svtype = ID[0], int(ID[1]), int(ID[2]), ID[3]
         if (chrom, start, end, svtype) in sv_interval_table:
             sv_interval_table[(chrom, start, end, svtype)]["FLANK_SPAN"].append((sv[0], int(sv[1]), int(sv[2])))
     # Might as well get original windows...
     for sv in sv_slop_left_flank_bed:
-        ID = sv[3].split(";")[-1].split("_")
+        ID = sv[3].split(";")[-1].split("#")
         chrom, start, end, svtype = ID[0], int(ID[1]), int(ID[2]), ID[3]
         if (chrom, start, end, svtype) in sv_interval_table:
             sv_interval_table[(chrom, start, end, svtype)]["WINDOWS"].append((sv[0], int(sv[1]), int(sv[2])))
     for sv in sv_slop_right_flank_bed:
-        ID = sv[3].split(";")[-1].split("_")
+        ID = sv[3].split(";")[-1].split("#")
         chrom, start, end, svtype = ID[0], int(ID[1]), int(ID[2]), ID[3]
         if (chrom, start, end, svtype) in sv_interval_table:
             sv_interval_table[(chrom, start, end, svtype)]["WINDOWS"].append((sv[0], int(sv[1]), int(sv[2])))
@@ -227,7 +227,8 @@ def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes
                 locus_HADs.append(AR)
        
         snv_features_table[(chrom, start, end)] = {}
-        snv_features_table[(chrom, start, end)]["snv_coverage"] = float(np.nanmedian(locus_depths))/df_preprocessing_table[df_preprocessing_table["chrom"] == chrom]["median_chrom_depth"].values[0]
+        snv_features_table[(chrom, start, end)]["snv_coverage"] = np.nan
+        if chrom in df_preprocessing_table["chrom"].values: snv_features_table[(chrom, start, end)]["snv_coverage"] = float(np.nanmedian(locus_depths))/df_preprocessing_table[df_preprocessing_table["chrom"] == chrom]["median_chrom_depth"].values[0]
         snv_features_table[(chrom, start, end)]["heterozygous_allele_ratio"] = np.nanmedian(locus_HADs)
         snv_features_table[(chrom, start, end)]["snvs"] = len(locus_depths)
         snv_features_table[(chrom, start, end)]["het_snvs"] = len(locus_HADs) 
@@ -356,7 +357,10 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
         alignment_features_table[(chrom, start, end)] = {}
         alignment_features_table[(chrom, start, end)]["type"] = svtype
         alignment_features_table[(chrom, start, end)]["size"] = svlen
-        if svlen > 1000:
+        if chrom not in df_preprocessing_table["chrom"].values:
+            alignment_features_table[(chrom, start, end)]["coverage"] = np.nan
+            alignment_features_table[(chrom, start, end)]["coverage_GCcorrected"] = np.nan
+        elif svlen > 1000:
             alignment_features_table[(chrom, start, end)]["coverage"] = ((float(alignment_count)/svlen)*df_preprocessing_table[df_preprocessing_table["chrom"] == "GENOME"]["median_read_length"].values[0])/df_preprocessing_table[df_preprocessing_table["chrom"] == chrom]["normalized_chrom_coverage"].values[0]
             alignment_features_table[(chrom, start, end)]["coverage_GCcorrected"] = gc_norm_factor_read_count * alignment_features_table[(chrom, start, end)]["coverage"] 
         else:
