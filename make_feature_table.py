@@ -335,8 +335,8 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
                     if alignment.is_supplementary:
                         second_alignment = alignment.get_tag("SA").split(",")
                         if len(second_alignment) != 0:
-                            if second_alignment[0] == c: # The value c that Danny uses for some reason (and leads to a split_read count of 0...) # c SHOULD BE chromosome instead (the second alignment should be on the same chromosome as the first one)
-                                if (windows[0][1] <= alignment.reference_start <= windows[0][2] and windows[1][1] <= second_alignment[1] - 1 <= windows[1][2]) or (windows[1][1] <= alignment.reference_start <= windows[1][2] and windows[0][1] <= second_alignment[1] - 1 <= windows[0][2]):
+                            if second_alignment[0] == chrom: # The value c that Danny uses for some reason (and leads to a split_read count of 0...) # c SHOULD BE chromosome instead (the second alignment should be on the same chromosome as the first one)
+                                if (windows[0][1] <= alignment.reference_start <= windows[0][2] and windows[1][1] <= int(second_alignment[1]) - 1 <= windows[1][2]) or (windows[1][1] <= alignment.reference_start <= windows[1][2] and windows[0][1] <= int(second_alignment[1]) - 1 <= windows[0][2]):
                                     split_read_count += 1
                 
                 if (not alignment.is_supplementary) and alignment.is_proper_pair and abs(alignment.template_length) < ci_insert_size_insert_mad:
