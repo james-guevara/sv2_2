@@ -171,8 +171,8 @@ df_malesexchrom_preds_concat_sorted = concat_and_sort_pred_dfs([df_malesexchrom_
 # Concat the diploid and haploid dfs, and then add quality scores
 df_preds_concat_sorted = pd.concat([df_preds_concat_sorted, df_malesexchrom_preds_concat_sorted])
 df_preds_concat_sorted["ALT_GENOTYPE_LIKELIHOOD"] = df_preds_concat_sorted["HET_GENOTYPE_LIKELIHOOD"] + df_preds_concat_sorted["HOM_GENOTYPE_LIKELIHOOD"]
-df_preds_concat_sorted["REF_QUAL"] = -10.0*np.log10(1.0 - df_preds_concat_sorted["REF_GENOTYPE_LIKELIHOOD"])
-df_preds_concat_sorted["ALT_QUAL"] = -10.0*np.log10(df_preds_concat_sorted["REF_GENOTYPE_LIKELIHOOD"])
+df_preds_concat_sorted["REF_QUAL"] = -10.0*np.log10(1.0 - df_preds_concat_sorted["REF_GENOTYPE_LIKELIHOOD"].astype(float))
+df_preds_concat_sorted["ALT_QUAL"] = -10.0*np.log10(df_preds_concat_sorted["REF_GENOTYPE_LIKELIHOOD"].astype(float))
 df_preds_concat_sorted = df_preds_concat_sorted[["chrom", "start", "end", "type", "size", "coverage", "coverage_GCcorrected", "discordant_ratio", "split_ratio", "snv_coverage", "heterozygous_allele_ratio", "snvs", "het_snvs", "ALT_GENOTYPE_LIKELIHOOD", "REF_QUAL", "ALT_QUAL", "HOM_GENOTYPE_LIKELIHOOD", "HET_GENOTYPE_LIKELIHOOD", "REF_GENOTYPE_LIKELIHOOD"]]
 
 # Initialize the GEN column to the missing genotype value ./.

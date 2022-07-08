@@ -4,12 +4,8 @@ import joblib
 import sys
 import argparse
 
-# Steps (since I'll be running this from a top-level script, I must use function definitions for these parts)
-# def load_features (will create df and df_male_sex_chromosomes) and so forth
-# Load dataframe and modify if sex is male 
-# Run each classifier in separate function and return as dataframe
-# After each classifier is run, concat and sort the output dataframe, and postprocess (e.g. create quality score column and genotype column)
-# Perhaps keep male sex chromosome part separate from the rest
+def initialize_output_dataframe(columns = ["chrom", "start", "end", "type", "HOM_GENOTYPE_LIKELIHOOD", "HET_GENOTYPE_LIKELIHOOD", "REF_GENOTYPE_LIKELIHOOD"]):
+    return pd.DataFrame(columns = ["chrom", "start", "end", "type", "HOM_GENOTYPE_LIKELIHOOD", "HET_GENOTYPE_LIKELIHOOD", "REF_GENOTYPE_LIKELIHOOD"])
 
 def load_features(features_table_filepath, sex):
     df = pd.read_csv(features_table_filepath, sep = "\t")
@@ -31,7 +27,9 @@ def load_features_from_dataframe(df_original, sex):
 
 # Run the classifier for the high-coverage deletions greater than 1KB in length
 def run_highcov_del_gt1kb_classifier(df, clf_highcov_del_gt1kb_filepath):
+    df_highcov_del_gt1kb_preds = initialize_output_dataframe()
     df_highcov_del_gt1kb_values = df[(df["size"] > 1000) & (df["type"] == "DEL")][["chrom", "start", "end", "type", "coverage_GCcorrected", "discordant_ratio", "split_ratio"]].dropna().values
+    if not np.any(df_highcov_del_gt1kb_values): return df_highcov_del_gt1kb_preds
     clf_highcov_del_gt1kb = joblib.load(clf_highcov_del_gt1kb_filepath)
     preds_highcov_del_gt1kb = clf_highcov_del_gt1kb.predict_proba(df_highcov_del_gt1kb_values[:, 4:])
     df_highcov_del_gt1kb_preds = pd.DataFrame({"chrom": df_highcov_del_gt1kb_values[:, 0], "start": df_highcov_del_gt1kb_values[:, 1], "end": df_highcov_del_gt1kb_values[:, 2], "type": df_highcov_del_gt1kb_values[:, 3], "HOM_GENOTYPE_LIKELIHOOD": preds_highcov_del_gt1kb[:, 0], "HET_GENOTYPE_LIKELIHOOD": preds_highcov_del_gt1kb[:, 1], "REF_GENOTYPE_LIKELIHOOD": preds_highcov_del_gt1kb[:, 2]})
@@ -39,23 +37,29 @@ def run_highcov_del_gt1kb_classifier(df, clf_highcov_del_gt1kb_filepath):
 
 # Likewise for high-coverage deletions less than 1KB in length...
 def run_highcov_del_lt1kb_classifier(df, clf_highcov_del_lt1kb_filepath):
+    df_highcov_del_lt1kb_preds = initialize_output_dataframe()
     df_highcov_del_lt1kb_values = df[(df["size"] <= 1000) & (df["type"] == "DEL")][["chrom", "start", "end", "type", "coverage_GCcorrected", "discordant_ratio", "split_ratio"]].dropna().values
+    if not np.any(df_highcov_del_lt1kb_values): return df_highcov_del_lt1kb_preds
     clf_highcov_del_lt1kb = joblib.load(clf_highcov_del_lt1kb_filepath)
     preds_highcov_del_lt1kb = clf_highcov_del_lt1kb.predict_proba(df_highcov_del_lt1kb_values[:, 4:])
     df_highcov_del_lt1kb_preds = pd.DataFrame({"chrom": df_highcov_del_lt1kb_values[:, 0], "start": df_highcov_del_lt1kb_values[:, 1], "end": df_highcov_del_lt1kb_values[:, 2], "type": df_highcov_del_lt1kb_values[:, 3], "HOM_GENOTYPE_LIKELIHOOD": preds_highcov_del_lt1kb[:, 0], "HET_GENOTYPE_LIKELIHOOD": preds_highcov_del_lt1kb[:, 1], "REF_GENOTYPE_LIKELIHOOD": preds_highcov_del_lt1kb[:, 2]})
     return df_highcov_del_lt1kb_preds
 
 def run_dup_breakpoint_classifier(df, clf_dup_breakpoint_filepath):
+    df_dup_breakpoint_preds = initialize_output_dataframe()
     df_dup_breakpoint_values = df[df["type"] == "DUP"][["chrom", "start", "end", "type", "coverage_GCcorrected", "discordant_ratio", "split_ratio"]].dropna()
     df_dup_breakpoint_values = df_dup_breakpoint_values[(df_dup_breakpoint_values["discordant_ratio"] > 0.0) | (df_dup_breakpoint_values["split_ratio"] > 0.0)].values
+    if not np.any(df_dup_breakpoint_values): return df_dup_breakpoint_preds 
     clf_dup_breakpoint = joblib.load(clf_dup_breakpoint_filepath)
     preds_dup_breakpoint = clf_dup_breakpoint.predict_proba(df_dup_breakpoint_values[:, 4:])
     df_dup_breakpoint_preds = pd.DataFrame({"chrom": df_dup_breakpoint_values[:, 0], "start": df_dup_breakpoint_values[:, 1], "end": df_dup_breakpoint_values[:, 2], "type": df_dup_breakpoint_values[:, 3], "HOM_GENOTYPE_LIKELIHOOD": preds_dup_breakpoint[:, 0], "HET_GENOTYPE_LIKELIHOOD": preds_dup_breakpoint[:, 1], "REF_GENOTYPE_LIKELIHOOD": preds_dup_breakpoint[:, 2]})
     return df_dup_breakpoint_preds
 
 def run_dup_har_classifier(df, clf_dup_har_filepath):
+    df_dup_har_preds = initialize_output_dataframe()
     df_dup_har_values = df[df["type"] == "DUP"][["chrom", "start", "end", "type", "coverage_GCcorrected", "discordant_ratio", "split_ratio", "heterozygous_allele_ratio"]].dropna()
     df_dup_har_values = df_dup_har_values[(df_dup_har_values["discordant_ratio"] == 0.0) & (df_dup_har_values["split_ratio"] == 0.0)][["chrom", "start", "end", "type", "coverage_GCcorrected", "heterozygous_allele_ratio"]].values
+    if not np.any(df_dup_har_values): return df_dup_har_preds 
     clf_dup_har = joblib.load(clf_dup_har_filepath)
     preds_dup_har = clf_dup_har.predict_proba(df_dup_har_values[:, 4:])
     df_dup_har_preds = pd.DataFrame({"chrom": df_dup_har_values[:, 0], "start": df_dup_har_values[:, 1], "end": df_dup_har_values[:, 2], "type": df_dup_har_values[:, 3], "HOM_GENOTYPE_LIKELIHOOD": preds_dup_har[:, 0], "HET_GENOTYPE_LIKELIHOOD": preds_dup_har[:, 1], "REF_GENOTYPE_LIKELIHOOD": preds_dup_har[:, 2]})
@@ -67,7 +71,9 @@ def concat_and_sort_pred_dfs(df_list, df):
     return df_preds_concat_sorted
 
 def run_malesexchrom_del_classifier(df_male_sex_chromosomes, clf_del_malesexchrom_filepath):
+    df_malesexchrom_del_preds = initialize_output_dataframe()
     df_malesexchrom_del_values = df_male_sex_chromosomes[df_male_sex_chromosomes["type"] == "DEL"][["chrom", "start", "end", "type", "coverage_GCcorrected", "discordant_ratio", "split_ratio"]].dropna().values
+    if not np.any(df_malesexchrom_del_values): return df_malesexchrom_del_preds
     clf_del_malesexchrom = joblib.load(clf_del_malesexchrom_filepath)
     preds_malesexchrom_del = clf_del_malesexchrom.predict_proba(df_malesexchrom_del_values[:, 4:]) # Only 2 predicted genotypes (because it's haploid)
     df_malesexchrom_del_preds = pd.DataFrame({"chrom": df_malesexchrom_del_values[:, 0], "start": df_malesexchrom_del_values[:, 1], "end": df_malesexchrom_del_values[:, 2], "type": df_malesexchrom_del_values[:, 3], "HOM_GENOTYPE_LIKELIHOOD": preds_malesexchrom_del[:, 0], "REF_GENOTYPE_LIKELIHOOD": preds_malesexchrom_del[:, 1]})
@@ -75,7 +81,9 @@ def run_malesexchrom_del_classifier(df_male_sex_chromosomes, clf_del_malesexchro
     return df_malesexchrom_del_preds
 
 def run_malesexchrom_dup_classifier(df_male_sex_chromosomes, clf_dup_malesexchrom_filepath):
+    df_malesexchrom_dup_preds = initialize_output_dataframe()
     df_malesexchrom_dup_values = df_male_sex_chromosomes[df_male_sex_chromosomes["type"] == "DUP"][["chrom", "start", "end", "type", "coverage_GCcorrected", "discordant_ratio", "split_ratio"]].dropna().values
+    if not np.any(df_malesexchrom_dup_values): return df_malesexchrom_dup_preds 
     clf_dup_malesexchrom = joblib.load(clf_dup_malesexchrom_filepath)
     preds_malesexchrom_dup = clf_dup_malesexchrom.predict_proba(df_malesexchrom_dup_values[:, 4:])
     df_malesexchrom_dup_preds = pd.DataFrame({"chrom": df_malesexchrom_dup_values[:, 0], "start": df_malesexchrom_dup_values[:, 1], "end": df_malesexchrom_dup_values[:, 2], "type": df_malesexchrom_dup_values[:, 3], "HOM_GENOTYPE_LIKELIHOOD": preds_malesexchrom_dup[:, 0], "REF_GENOTYPE_LIKELIHOOD": preds_malesexchrom_dup[:, 1]})
