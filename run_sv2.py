@@ -7,6 +7,8 @@ from pybedtools import BedTool
 import sys
 from time import gmtime, strftime
 
+current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
+
 # For step 1
 from make_feature_table import make_GC_content_reference_table
 from make_feature_table import make_regions_table  
@@ -93,9 +95,10 @@ if not args.preprocessing_table_input:
     df_preprocessing_table = df_alignment_preprocessing_table.join(df_snv_preprocessing_table).reset_index(level = 0).rename(columns = {"index": "chrom"})
 
     # Save preprocessing table to output folder
-    current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
     preprocessing_table_filepath =  "{}/{}_sv2_preprocessing_features_{}.tsv".format(output_folder, args.sample_name, current_time)
     df_preprocessing_table.to_csv(preprocessing_table_filepath, sep = "\t", index = False)
+
+    print("Preprocessing step done at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
 else:
     df_preprocessing_table = pd.read_csv(args.preprocessing_table_input, sep = "\t")
 
@@ -125,9 +128,10 @@ df_snv_features_table = pd.DataFrame.from_dict(snv_features_table, orient = "ind
 df_features_table = df_alignment_features_table.join(df_snv_features_table).reset_index().rename(columns = {"level_0": "chrom", "level_1": "start", "level_2": "end"})
 
 # Save SV features table
-current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
 features_table_filepath =  "{}/{}_sv2_features_{}.tsv".format(output_folder, args.sample_name, current_time)
 df_features_table.to_csv(features_table_filepath, sep = "\t", index = False)
+
+print("Making feature table step done at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
 
 """ classify.py step """
 
@@ -180,9 +184,12 @@ df_preds_concat_sorted["GEN"] = "./."
 if not df_preds_concat_sorted.empty: df_preds_concat_sorted["GEN"] = df_preds_concat_sorted[["REF_GENOTYPE_LIKELIHOOD", "HET_GENOTYPE_LIKELIHOOD", "HOM_GENOTYPE_LIKELIHOOD"]].apply(lambda x: get_genotype(*x), axis = 1)
 
 # Save genotype predictions table
-current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
 genotype_table_filepath = "{}/{}_genotyping_preds_{}.tsv".format(output_folder, args.sample_name, current_time)
 df_preds_concat_sorted.to_csv(genotype_table_filepath, sep = "\t", index = False)
 
+print("Genotyping step done at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
+
 """ make_vcf.py step """
-make_vcf(args.sample_name, args.reference_fasta, genotype_table_filepath, output_folder, sv2_command)
+make_vcf(args.sample_name, args.reference_fasta, genotype_table_filepath, output_folder, sv2_command, current_time)
+
+print("Making VCF step done at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))

@@ -7,7 +7,7 @@ import pysam
 import pysam.bcftools
 from time import gmtime, strftime
 
-def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_folder, sv2_command):
+def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_folder, sv2_command, current_time):
     vcf_header = pysam.VariantHeader()
     vcf_header.add_sample(sample_name)
     vcf_header.add_line("##SV2_CMD='{}'".format(sv2_command))
@@ -33,7 +33,6 @@ def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_fo
     for contig, contig_length in zip(fasta.references, fasta.lengths):
         vcf_header.contigs.add(contig, length = contig_length)
 
-    current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
     vcf_filename = "{}/{}_sv2_{}.vcf".format(output_folder, sample_name, current_time)
     vcf = pysam.VariantFile(vcf_filename, "w", header = vcf_header)
 
@@ -74,4 +73,5 @@ if __name__ == "__main__":
     parser.add_argument("--output_folder", help = "Output folder (optional)")
     args = parser.parse_args()
 
-    make_vcf(args.sample_name, args.reference_fasta, args.genotype_predictions_table, args.output_folder)
+    current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
+    make_vcf(args.sample_name, args.reference_fasta, args.genotype_predictions_table, args.output_folder, current_time)

@@ -343,11 +343,11 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
                     concordant_read_count += 1
                 
                 if concordant_read_count == 0:
-                    discordant_read_ratio = round(discordant_read_count/1.0, 3)
-                    split_read_ratio = round(split_read_count/1.0, 3)
+                    discordant_read_ratio = discordant_read_count/1.0
+                    split_read_ratio = split_read_count/1.0
                 else:
-                    discordant_read_ratio = round(discordant_read_count/float(concordant_read_count), 3)
-                    split_read_ratio = round(split_read_count/float(concordant_read_count), 3)
+                    discordant_read_ratio = discordant_read_count/float(concordant_read_count)
+                    split_read_ratio = split_read_count/float(concordant_read_count)
 
                 # if alignment.is_supplementary: split_read_count += 1
                 # if alignment.is_proper_pair: concordant_read_count += 1 
