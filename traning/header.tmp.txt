@@ -1,1 +1,0 @@
-chr	start	end	type	size	id	coverage	covr	dpe_rat	sr_rat	HET_ratio	normHET_ratio	HET_SNPs	copy_number
