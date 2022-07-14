@@ -68,6 +68,7 @@ if args.output_folder: output_folder = Path(args.output_folder)
 output_folder.mkdir(parents = True, exist_ok = True)
 
 """ make_feature_table.py step """
+print("Making feature table at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
 
 # Chromosomes to analyze (1,... 22, X, Y)
 chroms = list(map(str, np.arange(1, 22 + 1)))
@@ -134,6 +135,7 @@ df_features_table.to_csv(features_table_filepath, sep = "\t", index = False)
 print("Making feature table step done at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
 
 """ classify.py step """
+print("Genotyping SV calls at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
 
 # df, df_male_sex_chromosomes = load_features_from_dataframe(df_features_table, args.sex)
 df, df_male_sex_chromosomes = load_features(features_table_filepath, args.sex)
@@ -190,6 +192,7 @@ df_preds_concat_sorted.to_csv(genotype_table_filepath, sep = "\t", index = False
 print("Genotyping step done at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
 
 """ make_vcf.py step """
+print("Making VCF at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
 make_vcf(args.sample_name, args.reference_fasta, genotype_table_filepath, output_folder, sv2_command, current_time)
 
 print("Making VCF step done at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))

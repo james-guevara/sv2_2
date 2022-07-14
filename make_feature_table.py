@@ -120,7 +120,7 @@ def get_snv_preprocessing_data(snv_vcf_filepath, chroms, regions_table):
             try:
                 records = snv_vcf_iterator.fetch(region = "{}:{}-{}".format(chrom, start, end))
             except ValueError:
-                sys.stderr.write("WARNING: region {}:{}-{} not present in SNV VCF.\n".format(chrom, start, end))
+                # print("WARNING: region {}:{}-{} not present in SNV VCF.\n".format(chrom, start, end), file = sys.stderr)
                 continue
 
             for record in records:
@@ -206,7 +206,7 @@ def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes
             try: 
                 records = snv_vcf_iterator.fetch(region = "{}:{}-{}".format(chrom, str(start_), str(end_)))
             except ValueError:
-                sys.stderr.write("WARNING: region {}:{}-{} not present in SNV VCF.\n".format(chrom, str(start_), str(end_)))
+                print("WARNING: region {}:{}-{} not present in SNV VCF.\n".format(chrom, str(start_), str(end_)), file = sys.stderr)
                 continue
 
             for record in records:
@@ -277,17 +277,24 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
         sv_span = sv_interval_table[(chrom, start, end, svtype)]["SV_SPAN"]
         flank_span = sv_interval_table[(chrom, start, end, svtype)]["FLANK_SPAN"]
         windows = sv_interval_table[(chrom, start, end, svtype)]["WINDOWS"]
-        
-        read_count: int = 0
-        alignment_count: int = 0
-        basepair_span: int = 0
-        for span in sv_span:
-            for alignment in alignment_iterator.fetch(contig = span[0], start = span[1], end = span[2]):
-                basepair_span += span[2] - span[1]
-                alignment_count += 1
 
-        median_depth_of_coverage = np.nan
-        if svlen <= 1000:
+        # Initialize coverage, which is estimated differently depending on the length of the SV. 
+        coverage = np.nan
+        coverage_GCcorrected = np.nan
+        if chrom not in df_preprocessing_table["chrom"].values: pass
+        elif svlen > 1000:
+            print(sv)
+            read_count: int = 0
+            alignment_count: int = 0
+            basepair_span: int = 0
+            for span in sv_span:
+                for alignment in alignment_iterator.fetch(contig = span[0], start = span[1], end = span[2]):
+                    basepair_span += span[2] - span[1]
+                    alignment_count += 1
+            coverage = ((float(alignment_count)/svlen)*df_preprocessing_table[df_preprocessing_table["chrom"] == "GENOME"]["median_read_length"].values[0])/df_preprocessing_table[df_preprocessing_table["chrom"] == chrom]["normalized_chrom_coverage"].values[0]
+        else: # When SV length is less than 1000, we can use this more cumbersome method to estimate coverage.
+            print(sv)
+            median_depth_of_coverage = np.nan
             positional_depth_of_coverage = {}
             for span in sv_span:
                 depth_result = alignment_iterator.count_coverage(contig = span[0], start = span[1] - 1, stop = span[2], read_callback = check_read)
@@ -295,8 +302,9 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
                     positional_depth_of_coverage[span[1] + 1 + i] = depth_result[0][i] + depth_result[1][i] + depth_result[2][i] + depth_result[3][i]
             positional_depth_of_coverage_array = np.array(list(positional_depth_of_coverage.values()))
             median_depth_of_coverage = np.median(positional_depth_of_coverage_array)
+            coverage = float(median_depth_of_coverage)/df_preprocessing_table[df_preprocessing_table["chrom"] == chrom]["normalized_chrom_coverage"].values[0]
 
-
+        # Correcting coverage for GC content...
         gc_content_fraction = calculate_gc_content_fraction(sv_interval_table[(chrom, start, end, svtype)]["nucleotide_content"])
         base = 5
         gc_content = int(base * round((100*gc_content_fraction)/5))
@@ -304,6 +312,7 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
         gc_norm_factor_depth_of_coverage = 1.0
         if ("PCR-READCOUNT", gc_content) in GC_content_reference_table: gc_norm_factor_read_count = GC_content_reference_table[("PCR-DOC", gc_content)]
         if ("PCR-DOC", gc_content) in GC_content_reference_table: gc_norm_factor_depth_of_coverage = GC_content_reference_table[("PCR-DOC", gc_content)]
+        coverage_GCcorrected = gc_norm_factor_read_count * coverage 
 
         split_read_count: int = 0
         concordant_read_count: int = 0
@@ -351,16 +360,8 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
         alignment_features_table[(chrom, start, end)] = {}
         alignment_features_table[(chrom, start, end)]["type"] = svtype
         alignment_features_table[(chrom, start, end)]["size"] = svlen
-        if chrom not in df_preprocessing_table["chrom"].values:
-            alignment_features_table[(chrom, start, end)]["coverage"] = np.nan
-            alignment_features_table[(chrom, start, end)]["coverage_GCcorrected"] = np.nan
-        elif svlen > 1000:
-            alignment_features_table[(chrom, start, end)]["coverage"] = ((float(alignment_count)/svlen)*df_preprocessing_table[df_preprocessing_table["chrom"] == "GENOME"]["median_read_length"].values[0])/df_preprocessing_table[df_preprocessing_table["chrom"] == chrom]["normalized_chrom_coverage"].values[0]
-            alignment_features_table[(chrom, start, end)]["coverage_GCcorrected"] = gc_norm_factor_read_count * alignment_features_table[(chrom, start, end)]["coverage"] 
-        else:
-            alignment_features_table[(chrom, start, end)]["coverage"] = float(median_depth_of_coverage)/df_preprocessing_table[df_preprocessing_table["chrom"] == chrom]["normalized_chrom_coverage"].values[0]
-            alignment_features_table[(chrom, start, end)]["coverage_GCcorrected"] = gc_norm_factor_depth_of_coverage * alignment_features_table[(chrom, start, end)]["coverage"] 
-
+        alignment_features_table[(chrom, start, end)]["coverage"] = coverage
+        alignment_features_table[(chrom, start, end)]["coverage_GCcorrected"] = coverage_GCcorrected
         alignment_features_table[(chrom, start, end)]["discordant_ratio"] = discordant_read_ratio 
         alignment_features_table[(chrom, start, end)]["split_ratio"] = split_read_ratio 
 
