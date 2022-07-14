@@ -1,6 +1,7 @@
 import argparse
 import datetime
 import numpy as np
+import os
 import pandas as pd
 from pathlib import Path
 from pybedtools import BedTool
@@ -47,9 +48,19 @@ parser.add_argument("--clf_folder", help = "Folder that contains the classifiers
 # From make_vcf.py step
 parser.add_argument("--sample_name", help = "Sample name", required = True)
 parser.add_argument("--output_folder", help = "Output folder for output files (if not used, then output folder is set to 'sv2_output')")
+# Multithreading for pysam
+parser.add_argument("--threads", help = "Threads used  for pysam. Default is 1.")
 args = parser.parse_args()
 
 sv2_command = " ".join(sys.argv)
+
+# Multithreading (used for pysam commands)
+threads: int = 1
+if args.threads: 
+    threads = args.threads
+    if threads > len(os.sched_getaffinity(0)):
+        print("You're trying to allocate more threads than workers you have available. Allocate fewer threads.", file = sys.stderr) 
+        sys.exit()
 
 # If regions_bed or gc_reference_table aren't specified, we should look for them using the absolute path of this script (and these files should be found in the data folder, which is inside the same parent folder as this script)
 script_folder = Path(__file__).parent.absolute()
