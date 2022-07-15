@@ -32,7 +32,7 @@ def run_highcov_del_gt1kb_classifier(df, clf_highcov_del_gt1kb_filepath):
     if not np.any(df_highcov_del_gt1kb_values): return df_highcov_del_gt1kb_preds
     clf_highcov_del_gt1kb = joblib.load(clf_highcov_del_gt1kb_filepath)
     preds_highcov_del_gt1kb = clf_highcov_del_gt1kb.predict_proba(df_highcov_del_gt1kb_values[:, 4:])
-    df_highcov_del_gt1kb_preds = pd.DataFrame({"chrom": df_highcov_del_gt1kb_values[:, 0], "start": df_highcov_del_gt1kb_values[:, 1], "end": df_highcov_del_gt1kb_values[:, 2], "type": df_highcov_del_gt1kb_values[:, 3], "HOM_GENOTYPE_LIKELIHOOD": preds_highcov_del_gt1kb[:, 0], "HET_GENOTYPE_LIKELIHOOD": preds_highcov_del_gt1kb[:, 1], "REF_GENOTYPE_LIKELIHOOD": preds_highcov_del_gt1kb[:, 2]})
+    df_highcov_del_gt1kb_preds = pd.DataFrame({"chrom": df_highcov_del_gt1kb_values[:, 0], "start": df_highcov_del_gt1kb_values[:, 1], "end": df_highcov_del_gt1kb_values[:, 2], "type": df_highcov_del_gt1kb_values[:, 3], "HOM_GENOTYPE_LIKELIHOOD": preds_highcov_del_gt1kb[:, 0], "HET_GENOTYPE_LIKELIHOOD": preds_highcov_del_gt1kb[:, 1], "REF_GENOTYPE_LIKELIHOOD": preds_highcov_del_gt1kb[:, 2], "Classifier": "clf_highcov_del_gt1kb"})
     return df_highcov_del_gt1kb_preds
 
 # Likewise for high-coverage deletions less than 1KB in length...
@@ -42,7 +42,7 @@ def run_highcov_del_lt1kb_classifier(df, clf_highcov_del_lt1kb_filepath):
     if not np.any(df_highcov_del_lt1kb_values): return df_highcov_del_lt1kb_preds
     clf_highcov_del_lt1kb = joblib.load(clf_highcov_del_lt1kb_filepath)
     preds_highcov_del_lt1kb = clf_highcov_del_lt1kb.predict_proba(df_highcov_del_lt1kb_values[:, 4:])
-    df_highcov_del_lt1kb_preds = pd.DataFrame({"chrom": df_highcov_del_lt1kb_values[:, 0], "start": df_highcov_del_lt1kb_values[:, 1], "end": df_highcov_del_lt1kb_values[:, 2], "type": df_highcov_del_lt1kb_values[:, 3], "HOM_GENOTYPE_LIKELIHOOD": preds_highcov_del_lt1kb[:, 0], "HET_GENOTYPE_LIKELIHOOD": preds_highcov_del_lt1kb[:, 1], "REF_GENOTYPE_LIKELIHOOD": preds_highcov_del_lt1kb[:, 2]})
+    df_highcov_del_lt1kb_preds = pd.DataFrame({"chrom": df_highcov_del_lt1kb_values[:, 0], "start": df_highcov_del_lt1kb_values[:, 1], "end": df_highcov_del_lt1kb_values[:, 2], "type": df_highcov_del_lt1kb_values[:, 3], "HOM_GENOTYPE_LIKELIHOOD": preds_highcov_del_lt1kb[:, 0], "HET_GENOTYPE_LIKELIHOOD": preds_highcov_del_lt1kb[:, 1], "REF_GENOTYPE_LIKELIHOOD": preds_highcov_del_lt1kb[:, 2], "Classifier": "clf_highcov_del_lt1kb"})
     return df_highcov_del_lt1kb_preds
 
 def run_dup_breakpoint_classifier(df, clf_dup_breakpoint_filepath):
@@ -52,7 +52,7 @@ def run_dup_breakpoint_classifier(df, clf_dup_breakpoint_filepath):
     if not np.any(df_dup_breakpoint_values): return df_dup_breakpoint_preds 
     clf_dup_breakpoint = joblib.load(clf_dup_breakpoint_filepath)
     preds_dup_breakpoint = clf_dup_breakpoint.predict_proba(df_dup_breakpoint_values[:, 4:])
-    df_dup_breakpoint_preds = pd.DataFrame({"chrom": df_dup_breakpoint_values[:, 0], "start": df_dup_breakpoint_values[:, 1], "end": df_dup_breakpoint_values[:, 2], "type": df_dup_breakpoint_values[:, 3], "HOM_GENOTYPE_LIKELIHOOD": preds_dup_breakpoint[:, 0], "HET_GENOTYPE_LIKELIHOOD": preds_dup_breakpoint[:, 1], "REF_GENOTYPE_LIKELIHOOD": preds_dup_breakpoint[:, 2]})
+    df_dup_breakpoint_preds = pd.DataFrame({"chrom": df_dup_breakpoint_values[:, 0], "start": df_dup_breakpoint_values[:, 1], "end": df_dup_breakpoint_values[:, 2], "type": df_dup_breakpoint_values[:, 3], "HOM_GENOTYPE_LIKELIHOOD": preds_dup_breakpoint[:, 0], "HET_GENOTYPE_LIKELIHOOD": preds_dup_breakpoint[:, 1], "REF_GENOTYPE_LIKELIHOOD": preds_dup_breakpoint[:, 2], "Classifier": "clf_dup_breakpoint"})
     return df_dup_breakpoint_preds
 
 def run_dup_har_classifier(df, clf_dup_har_filepath):
@@ -62,7 +62,7 @@ def run_dup_har_classifier(df, clf_dup_har_filepath):
     if not np.any(df_dup_har_values): return df_dup_har_preds 
     clf_dup_har = joblib.load(clf_dup_har_filepath)
     preds_dup_har = clf_dup_har.predict_proba(df_dup_har_values[:, 4:])
-    df_dup_har_preds = pd.DataFrame({"chrom": df_dup_har_values[:, 0], "start": df_dup_har_values[:, 1], "end": df_dup_har_values[:, 2], "type": df_dup_har_values[:, 3], "HOM_GENOTYPE_LIKELIHOOD": preds_dup_har[:, 0], "HET_GENOTYPE_LIKELIHOOD": preds_dup_har[:, 1], "REF_GENOTYPE_LIKELIHOOD": preds_dup_har[:, 2]})
+    df_dup_har_preds = pd.DataFrame({"chrom": df_dup_har_values[:, 0], "start": df_dup_har_values[:, 1], "end": df_dup_har_values[:, 2], "type": df_dup_har_values[:, 3], "HOM_GENOTYPE_LIKELIHOOD": preds_dup_har[:, 0], "HET_GENOTYPE_LIKELIHOOD": preds_dup_har[:, 1], "REF_GENOTYPE_LIKELIHOOD": preds_dup_har[:, 2], "Classifier": "clf_dup_har"})
     return df_dup_har_preds
 
 def concat_and_sort_pred_dfs(df_list, df):
@@ -76,7 +76,7 @@ def run_malesexchrom_del_classifier(df_male_sex_chromosomes, clf_del_malesexchro
     if not np.any(df_malesexchrom_del_values): return df_malesexchrom_del_preds
     clf_del_malesexchrom = joblib.load(clf_del_malesexchrom_filepath)
     preds_malesexchrom_del = clf_del_malesexchrom.predict_proba(df_malesexchrom_del_values[:, 4:]) # Only 2 predicted genotypes (because it's haploid)
-    df_malesexchrom_del_preds = pd.DataFrame({"chrom": df_malesexchrom_del_values[:, 0], "start": df_malesexchrom_del_values[:, 1], "end": df_malesexchrom_del_values[:, 2], "type": df_malesexchrom_del_values[:, 3], "HOM_GENOTYPE_LIKELIHOOD": preds_malesexchrom_del[:, 0], "REF_GENOTYPE_LIKELIHOOD": preds_malesexchrom_del[:, 1]})
+    df_malesexchrom_del_preds = pd.DataFrame({"chrom": df_malesexchrom_del_values[:, 0], "start": df_malesexchrom_del_values[:, 1], "end": df_malesexchrom_del_values[:, 2], "type": df_malesexchrom_del_values[:, 3], "HOM_GENOTYPE_LIKELIHOOD": preds_malesexchrom_del[:, 0], "REF_GENOTYPE_LIKELIHOOD": preds_malesexchrom_del[:, 1], "Classifier": "clf_del_malesexchrom"})
     df_malesexchrom_del_preds["HET_GENOTYPE_LIKELIHOOD"] = 0.0
     return df_malesexchrom_del_preds
 
@@ -86,7 +86,7 @@ def run_malesexchrom_dup_classifier(df_male_sex_chromosomes, clf_dup_malesexchro
     if not np.any(df_malesexchrom_dup_values): return df_malesexchrom_dup_preds 
     clf_dup_malesexchrom = joblib.load(clf_dup_malesexchrom_filepath)
     preds_malesexchrom_dup = clf_dup_malesexchrom.predict_proba(df_malesexchrom_dup_values[:, 4:])
-    df_malesexchrom_dup_preds = pd.DataFrame({"chrom": df_malesexchrom_dup_values[:, 0], "start": df_malesexchrom_dup_values[:, 1], "end": df_malesexchrom_dup_values[:, 2], "type": df_malesexchrom_dup_values[:, 3], "HOM_GENOTYPE_LIKELIHOOD": preds_malesexchrom_dup[:, 0], "REF_GENOTYPE_LIKELIHOOD": preds_malesexchrom_dup[:, 1]})
+    df_malesexchrom_dup_preds = pd.DataFrame({"chrom": df_malesexchrom_dup_values[:, 0], "start": df_malesexchrom_dup_values[:, 1], "end": df_malesexchrom_dup_values[:, 2], "type": df_malesexchrom_dup_values[:, 3], "HOM_GENOTYPE_LIKELIHOOD": preds_malesexchrom_dup[:, 0], "REF_GENOTYPE_LIKELIHOOD": preds_malesexchrom_dup[:, 1], "Classifier": "clf_dup_malesexchrom"})
     df_malesexchrom_dup_preds["HET_GENOTYPE_LIKELIHOOD"] = 0.0
     return df_malesexchrom_dup_preds
 

@@ -105,7 +105,7 @@ def make_alignment_preprocessing_table(alignment_filepath, reference_filepath, c
 # Get the SNV preprocessing data (from the SNV VCF):
 def get_snv_preprocessing_data(snv_vcf_filepath, chroms, regions_table, threads = 1):
     snv_preprocessing_table = {} 
-    snv_vcf_iterator = pysam.VariantFile(snv_vcf_filepath, mode = "r", threads) 
+    snv_vcf_iterator = pysam.VariantFile(snv_vcf_filepath, mode = "r", threads = threads) 
     for chrom in snv_vcf_iterator.header.contigs:
         if chrom.removeprefix("chr") not in chroms: continue
         if chrom.removeprefix("chr") not in regions_table: continue
@@ -232,7 +232,7 @@ def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes
 
     return snv_features_table
 
-def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed, df_preprocessing_table, sv_interval_table, svtypes, GC_content_reference_table, threads = threads):
+def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed, df_preprocessing_table, sv_interval_table, svtypes, GC_content_reference_table, threads = 1):
     def calculate_gc_content_fraction(sv_interval_table_nucleotide_content_list):
         # https://daler.github.io/pybedtools/autodocs/pybedtools.bedtool.BedTool.nucleotide_content.html
         # The elements in each sublist are as follows: 
@@ -287,8 +287,17 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
             alignment_count: int = 0
             basepair_span: int = 0
             for span in sv_span:
+                basepair_span += span[2] - span[1]
                 for alignment in alignment_iterator.fetch(contig = span[0], start = span[1], end = span[2]):
-                    basepair_span += span[2] - span[1]
+                    # if (alignment.is_reverse == alignment.mate_is_reverse): continue
+                    # if not alignment.is_proper_pair: continue
+                    # if alignment.is_qcfail: continue
+                    # if alignment.mapping_quality < 10: continue
+                    # if alignment.is_unmapped: continue
+                    # if alignment.mate_is_unmapped: continue
+                    # if alignment.is_duplicate: continue
+                    # if abs(alignment.template_length) >= ci_insert_size_insert_mad: continue
+                    # if alignment.template_length != alignment.next_reference_id: continue
                     alignment_count += 1
             coverage = ((float(alignment_count)/svlen)*df_preprocessing_table[df_preprocessing_table["chrom"] == "GENOME"]["median_read_length"].values[0])/df_preprocessing_table[df_preprocessing_table["chrom"] == chrom]["normalized_chrom_coverage"].values[0]
         else: # When SV length is less than 1000, we can use this more cumbersome method to estimate coverage.
@@ -322,8 +331,8 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
         discordant_read_ratio: float = 0.0
         for flank in flank_span:
             for alignment in alignment_iterator.fetch(contig = flank[0], start = flank[1], end = flank[2]):
-                if alignment.is_qcfail == True: continue
-                if alignment.is_duplicate == True: continue
+                if alignment.is_qcfail: continue
+                if alignment.is_duplicate: continue
                 if alignment.mapping_quality < 10: continue
                 if alignment.is_unmapped: continue
                 if alignment.is_reverse == alignment.mate_is_reverse: continue

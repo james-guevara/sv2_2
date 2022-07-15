@@ -41,16 +41,36 @@ def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_fo
         header = f.readline().rstrip()
         for line in f:
             linesplit = line.rstrip().split("\t")
-            chrom, start, end, type_, size, coverage, coverage_GCcorrected, discordant_ratio, split_ratio, snv_coverage, heterozygous_allele_ratio, snvs, het_snvs, ALT_GENOTYPE_LIKELIHOOD, REF_QUAL, ALT_QUAL, HOM_GENOTYPE_LIKELIHOOD, HET_GENOTYPE_LIKELIHOOD, REF_GENOTYPE_LIKELIHOOD, GEN = linesplit[0], linesplit[1], linesplit[2], linesplit[3], linesplit[4], linesplit[5], linesplit[6], linesplit[7], linesplit[8], linesplit[9], linesplit[10], linesplit[11], linesplit[12], linesplit[13], linesplit[14], linesplit[15], linesplit[16], linesplit[17], linesplit[18], linesplit[19]
+            chrom, start, end, type_, size, coverage, coverage_GCcorrected, discordant_ratio, split_ratio, snv_coverage, heterozygous_allele_ratio, snvs, het_snvs, ALT_GENOTYPE_LIKELIHOOD, REF_QUAL, ALT_QUAL, HOM_GENOTYPE_LIKELIHOOD, HET_GENOTYPE_LIKELIHOOD, REF_GENOTYPE_LIKELIHOOD, GEN = linesplit[0], int(linesplit[1]), int(linesplit[2]), linesplit[3], int(linesplit[4]), linesplit[5], linesplit[6], linesplit[7], linesplit[8], linesplit[9], linesplit[10], linesplit[11], linesplit[12], linesplit[13], linesplit[14], linesplit[15], linesplit[16], linesplit[17], linesplit[18], linesplit[19]
             if snv_coverage == "": snv_coverage = float("nan") 
             if heterozygous_allele_ratio == "": heterozygous_allele_ratio = float("nan") 
 
-            record = vcf.new_record(contig = chrom, start = int(start), stop = int(end), alleles = ("N", "<{}>".format(type_)))
+            record = vcf.new_record(contig = chrom, start = start, stop = end, alleles = ("N", "<{}>".format(type_)))
     
             record.info["SVTYPE"] = type_
-            record.info["SVLEN"] = int(size)
-    
-            record.samples[sample_name]["GT"] = ( GEN.split("/")[0], GEN.split("/")[1] )
+            record.info["SVLEN"] = size
+
+            ### Standard filter
+            ##FILTER = "PASS"
+            ##median_alternate_likelihood = np.median([float(HOM_GENOTYPE_LIKELIHOOD), float(HET_GENOTYPE_LIKELIHOOD)])
+            ##if type_ == "DEL":
+            ##    if float(discordant_ratio) != 0 or float(split_ratio) != 0:
+            ##        if median_alternate_likelihood < 8: FILTER = "FAIL"
+            ##    else:
+            ##        if size < 1000:
+            ##            if median_alternate_likelihood < 18: FILTER = "FAIL"
+            ##        else:
+            ##            if size < 3000: FILTER = "FAIL"
+            ##            elif (3000 <= size < 5000) and median_alternate_likelihood < 20: FILTER = "FAIL"
+            ##            elif size >= 5000 and median_alternate_likelihood < 18: FILTER = "FAIL"
+            ##elif type_ == "DUP":
+            ##    if float(discordant_ratio) != 0 or float(split_ratio) != 0:
+            ##        if size  < 1000 and median_alternate_likelihood < 12: FILTER = "FAIL"
+            ##        if size >= 1000 and median_alternate_likelihood < 10: FILTER = "FAIL"
+
+            ### De novo filter
+
+            record.samples[sample_name]["GT"] = (int(GEN.split("/")[0]), int(GEN.split("/")[1]))
             record.samples[sample_name]["PE"] = round(float(discordant_ratio), 1)
             record.samples[sample_name]["SR"] = round(float(split_ratio), 1)
             record.samples[sample_name]["SC"] = round(float(snv_coverage), 1)
