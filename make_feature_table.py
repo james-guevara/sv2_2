@@ -221,9 +221,11 @@ def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes
                 locus_HADs.append(AR)
        
         snv_features_table[(chrom, start, end)] = {}
-        snv_features_table[(chrom, start, end)]["snv_coverage"] = np.nan
-        if chrom in df_preprocessing_table["chrom"].values: snv_features_table[(chrom, start, end)]["snv_coverage"] = float(np.nanmedian(locus_depths))/df_preprocessing_table[df_preprocessing_table["chrom"] == chrom]["median_chrom_depth"].values[0]
-        snv_features_table[(chrom, start, end)]["heterozygous_allele_ratio"] = np.nanmedian(locus_HADs)
+        snv_features_table[(chrom, start, end)]["snv_coverage"] = np.nan # Change to float("nan") maybe
+        snv_features_table[(chrom, start, end)]["heterozygous_allele_ratio"] = np.nan # Change to float("nan") maybe
+        if len(locus_depths) > 0:
+            if chrom in df_preprocessing_table["chrom"].values: snv_features_table[(chrom, start, end)]["snv_coverage"] = float(np.nanmedian(locus_depths))/df_preprocessing_table[df_preprocessing_table["chrom"] == chrom]["median_chrom_depth"].values[0]
+            snv_features_table[(chrom, start, end)]["heterozygous_allele_ratio"] = np.nanmedian(locus_HADs)
         snv_features_table[(chrom, start, end)]["snvs"] = len(locus_depths)
         snv_features_table[(chrom, start, end)]["het_snvs"] = len(locus_HADs) 
 

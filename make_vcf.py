@@ -36,12 +36,53 @@ def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_fo
     vcf_filename = "{}/{}_sv2_{}.vcf".format(output_folder, sample_name, current_time)
     vcf = pysam.VariantFile(vcf_filename, "w", header = vcf_header)
 
-    # with open("genotyping_preds2022-06-03_23.36.29.tsv", "r") as f:
+    def make_column_indices_table(header_list):
+        index_dictionary = {}
+        for index, name in enumerate(header_list):
+            index_dictionary[name] = index
+        return index_dictionary
+
     with open(genotype_predictions_table, "r") as f:
-        header = f.readline().rstrip()
+        header_list = f.readline().rstrip().split("\t")
+        index_dictionary = make_column_indices_table(header_list)
         for line in f:
             linesplit = line.rstrip().split("\t")
-            chrom, start, end, type_, size, coverage, coverage_GCcorrected, discordant_ratio, split_ratio, snv_coverage, heterozygous_allele_ratio, snvs, het_snvs, ALT_GENOTYPE_LIKELIHOOD, REF_QUAL, ALT_QUAL, HOM_GENOTYPE_LIKELIHOOD, HET_GENOTYPE_LIKELIHOOD, REF_GENOTYPE_LIKELIHOOD, GEN = linesplit[0], int(linesplit[1]), int(linesplit[2]), linesplit[3], int(linesplit[4]), linesplit[5], linesplit[6], linesplit[7], linesplit[8], linesplit[9], linesplit[10], linesplit[11], linesplit[12], linesplit[13], linesplit[14], linesplit[15], linesplit[16], linesplit[17], linesplit[18], linesplit[19]
+            # SV identifier
+            chrom = linesplit[index_dictionary["chrom"]] 
+            start = linesplit[index_dictionary["start"]] 
+            end   = linesplit[index_dictionary["end"]] 
+            type_ = linesplit[index_dictionary["type"]] 
+            size  = linesplit[index_dictionary["size"]] 
+
+            # Coverage features
+            coverage             = linesplit[index_dictionary["coverage"]] 
+            coverage_GCcorrected = linesplit[index_dictionary["coverage_GCcorrected"]] 
+
+            # Read-level features
+            discordant_ratio = linesplit[index_dictionary["discordant_ratio"]] 
+            split_ratio      = linesplit[index_dictionary["split_ratio"]] 
+
+            # SNV features
+            snv_coverage              = linesplit[index_dictionary["snv_coverage"]] 
+            heterozygous_allele_ratio = linesplit[index_dictionary["heterozygous_allele_ratio"]] 
+            snvs                      = linesplit[index_dictionary["snvs"]] 
+            het_snvs                  = linesplit[index_dictionary["het_snvs"]] 
+
+            # Genotype likelihoods and quality scores
+            REF_GENOTYPE_LIKELIHOOD = linesplit[index_dictionary["REF_GENOTYPE_LIKELIHOOD"]] 
+            HET_GENOTYPE_LIKELIHOOD = linesplit[index_dictionary["HET_GENOTYPE_LIKELIHOOD"]] 
+            HOM_GENOTYPE_LIKELIHOOD = linesplit[index_dictionary["HOM_GENOTYPE_LIKELIHOOD"]] 
+            ALT_GENOTYPE_LIKELIHOOD = linesplit[index_dictionary["ALT_GENOTYPE_LIKELIHOOD"]] 
+            REF_QUAL = linesplit[index_dictionary["REF_QUAL"]] 
+            ALT_QUAL = linesplit[index_dictionary["ALT_QUAL"]] 
+
+            # Classifier name
+            Classifier = linesplit[index_dictionary["Classifier"]]
+
+            # Genotype
+            GEN = linesplit[index_dictionary["GEN"]]
+
+            # chrom, start, end, type_, size, coverage, coverage_GCcorrected, discordant_ratio, split_ratio, snv_coverage, heterozygous_allele_ratio, snvs, het_snvs, ALT_GENOTYPE_LIKELIHOOD, REF_QUAL, ALT_QUAL, HOM_GENOTYPE_LIKELIHOOD, HET_GENOTYPE_LIKELIHOOD, REF_GENOTYPE_LIKELIHOOD, GEN = linesplit[0], int(linesplit[1]), int(linesplit[2]), linesplit[3], int(linesplit[4]), linesplit[5], linesplit[6], linesplit[7], linesplit[8], linesplit[9], linesplit[10], linesplit[11], linesplit[12], linesplit[13], linesplit[14], linesplit[15], linesplit[16], linesplit[17], linesplit[18], linesplit[19]
             if snv_coverage == "": snv_coverage = float("nan") 
             if heterozygous_allele_ratio == "": heterozygous_allele_ratio = float("nan") 
 
