@@ -70,6 +70,7 @@ def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_fo
 
             ### De novo filter
 
+
             record.samples[sample_name]["GT"] = (int(GEN.split("/")[0]), int(GEN.split("/")[1]))
             record.samples[sample_name]["PE"] = round(float(discordant_ratio), 1)
             record.samples[sample_name]["SR"] = round(float(split_ratio), 1)
