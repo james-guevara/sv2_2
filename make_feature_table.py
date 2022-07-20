@@ -288,15 +288,15 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
             for span in sv_span:
                 basepair_span += span[2] - span[1]
                 for alignment in alignment_iterator.fetch(contig = span[0], start = span[1], end = span[2]):
-                    # if (alignment.is_reverse == alignment.mate_is_reverse): continue
-                    # if not alignment.is_proper_pair: continue
-                    # if alignment.is_qcfail: continue
-                    # if alignment.mapping_quality < 10: continue
-                    # if alignment.is_unmapped: continue
-                    # if alignment.mate_is_unmapped: continue
-                    # if alignment.is_duplicate: continue
-                    # if abs(alignment.template_length) >= ci_insert_size_insert_mad: continue
-                    # if alignment.template_length != alignment.next_reference_id: continue
+                    if (alignment.is_reverse == alignment.mate_is_reverse): continue
+                    if not alignment.is_proper_pair: continue
+                    if alignment.is_qcfail: continue
+                    if alignment.mapping_quality < 10: continue
+                    if alignment.is_unmapped: continue
+                    if alignment.mate_is_unmapped: continue
+                    if alignment.is_duplicate: continue
+                    if abs(alignment.template_length) >= ci_insert_size_insert_mad: continue
+                    if alignment.reference_id != alignment.next_reference_id: continue
                     alignment_count += 1
             coverage = ((float(alignment_count)/svlen)*df_preprocessing_table[df_preprocessing_table["chrom"] == "GENOME"]["median_read_length"].values[0])/df_preprocessing_table[df_preprocessing_table["chrom"] == chrom]["normalized_chrom_coverage"].values[0]
         else: # When SV length is less than 1000, we can use this more cumbersome method to estimate coverage.
