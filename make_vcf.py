@@ -3,6 +3,7 @@
 # I'm pretty sure the table is in BED format, meaning that we can take the CHROM, START, END, use pybedtools to wrap that as BED formatted data, and then intersect with whatever we want.
 #   When we intersect, we can specify new columns/labels and how much each SV overlaps with each type of genomic region.
 import argparse
+import numpy as np
 import pysam
 import pysam.bcftools
 from time import gmtime, strftime
@@ -12,11 +13,13 @@ def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_fo
     vcf_header.add_sample(sample_name)
     vcf_header.add_line("##SV2_CMD='{}'".format(sv2_command))
     # FILTER fields
-    vcf_header.add_meta("FILTER", items = [ ("ID", "RF"), ("Description", "Variant filed filter due to low RF") ] )
+    vcf_header.add_meta("FILTER", items = [ ("ID", "FAIL"), ("Description", "Variant failed standard filters") ] )
+    vcf_header.add_meta("FILTER", items = [ ("ID", "PASS"), ("Description", "Variant passed standard filters") ] )
     # INFO fields
     vcf_header.add_meta("INFO", items = [ ("ID", "END"), ("Number", 1), ("Type", "Integer"), ("Description", "End position of structural variant") ] )
     vcf_header.add_meta("INFO", items = [ ("ID", "SVTYPE"), ("Number", 1), ("Type", "String"), ("Description", "Type of structural variant") ] )
     vcf_header.add_meta("INFO", items = [ ("ID", "SVLEN"), ("Number", 1), ("Type", "Integer"), ("Description", "Length of structural variant") ] )
+    vcf_header.add_meta("INFO", items = [ ("ID", "DENOVO_FILTER"), ("Number", 1), ("Type", "String"), ("Description", "Stringent filter status, recommended for de novo mutation discovery") ] )
     # FORMAT fields
     vcf_header.add_meta("FORMAT", items = [ ("ID", "GT"), ("Number", 1), ("Type", "String"), ("Description", "Genotype") ] )
     vcf_header.add_meta("FORMAT", items = [ ("ID", "PE"), ("Number", 1), ("Type", "Float"), ("Description", "Normalized discordant paired-end count") ] )
@@ -49,32 +52,33 @@ def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_fo
             linesplit = line.rstrip().split("\t")
             # SV identifier
             chrom = linesplit[index_dictionary["chrom"]] 
-            start = linesplit[index_dictionary["start"]] 
-            end   = linesplit[index_dictionary["end"]] 
+            start = int(linesplit[index_dictionary["start"]])
+            end   = int(linesplit[index_dictionary["end"]])
             type_ = linesplit[index_dictionary["type"]] 
-            size  = linesplit[index_dictionary["size"]] 
+            size  = int(linesplit[index_dictionary["size"]])
 
             # Coverage features
             coverage             = linesplit[index_dictionary["coverage"]] 
             coverage_GCcorrected = linesplit[index_dictionary["coverage_GCcorrected"]] 
 
             # Read-level features
-            discordant_ratio = linesplit[index_dictionary["discordant_ratio"]] 
-            split_ratio      = linesplit[index_dictionary["split_ratio"]] 
+            discordant_ratio = float(linesplit[index_dictionary["discordant_ratio"]])
+            split_ratio      = float(linesplit[index_dictionary["split_ratio"]]) 
 
             # SNV features
-            snv_coverage              = linesplit[index_dictionary["snv_coverage"]] 
-            heterozygous_allele_ratio = linesplit[index_dictionary["heterozygous_allele_ratio"]] 
-            snvs                      = linesplit[index_dictionary["snvs"]] 
-            het_snvs                  = linesplit[index_dictionary["het_snvs"]] 
+            snv_coverage              = float(linesplit[index_dictionary["snv_coverage"]])
+            heterozygous_allele_ratio = linesplit[index_dictionary["heterozygous_allele_ratio"]]
+            if heterozygous_allele_ratio == "": heterozygous_allele_ratio = float("nan")
+            snvs                      = int(linesplit[index_dictionary["snvs"]])
+            het_snvs                  = int(linesplit[index_dictionary["het_snvs"]]) 
 
             # Genotype likelihoods and quality scores
-            REF_GENOTYPE_LIKELIHOOD = linesplit[index_dictionary["REF_GENOTYPE_LIKELIHOOD"]] 
-            HET_GENOTYPE_LIKELIHOOD = linesplit[index_dictionary["HET_GENOTYPE_LIKELIHOOD"]] 
-            HOM_GENOTYPE_LIKELIHOOD = linesplit[index_dictionary["HOM_GENOTYPE_LIKELIHOOD"]] 
-            ALT_GENOTYPE_LIKELIHOOD = linesplit[index_dictionary["ALT_GENOTYPE_LIKELIHOOD"]] 
-            REF_QUAL = linesplit[index_dictionary["REF_QUAL"]] 
-            ALT_QUAL = linesplit[index_dictionary["ALT_QUAL"]] 
+            REF_GENOTYPE_LIKELIHOOD = float(linesplit[index_dictionary["REF_GENOTYPE_LIKELIHOOD"]])
+            HET_GENOTYPE_LIKELIHOOD = float(linesplit[index_dictionary["HET_GENOTYPE_LIKELIHOOD"]]) 
+            HOM_GENOTYPE_LIKELIHOOD = float(linesplit[index_dictionary["HOM_GENOTYPE_LIKELIHOOD"]])
+            ALT_GENOTYPE_LIKELIHOOD = float(linesplit[index_dictionary["ALT_GENOTYPE_LIKELIHOOD"]])
+            REF_QUAL = float(linesplit[index_dictionary["REF_QUAL"]])
+            ALT_QUAL = float(linesplit[index_dictionary["ALT_QUAL"]])
 
             # Classifier name
             Classifier = linesplit[index_dictionary["Classifier"]]
@@ -82,45 +86,85 @@ def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_fo
             # Genotype
             GEN = linesplit[index_dictionary["GEN"]]
 
-            # chrom, start, end, type_, size, coverage, coverage_GCcorrected, discordant_ratio, split_ratio, snv_coverage, heterozygous_allele_ratio, snvs, het_snvs, ALT_GENOTYPE_LIKELIHOOD, REF_QUAL, ALT_QUAL, HOM_GENOTYPE_LIKELIHOOD, HET_GENOTYPE_LIKELIHOOD, REF_GENOTYPE_LIKELIHOOD, GEN = linesplit[0], int(linesplit[1]), int(linesplit[2]), linesplit[3], int(linesplit[4]), linesplit[5], linesplit[6], linesplit[7], linesplit[8], linesplit[9], linesplit[10], linesplit[11], linesplit[12], linesplit[13], linesplit[14], linesplit[15], linesplit[16], linesplit[17], linesplit[18], linesplit[19]
-            if snv_coverage == "": snv_coverage = float("nan") 
-            if heterozygous_allele_ratio == "": heterozygous_allele_ratio = float("nan") 
-
+            # Creating variant record in VCF
             record = vcf.new_record(contig = chrom, start = start, stop = end, alleles = ("N", "<{}>".format(type_)))
+
+            SQ = round(max(REF_QUAL, ALT_QUAL), 2) # SQ and QUAL score
+
+            record.qual = SQ
+
     
             record.info["SVTYPE"] = type_
             record.info["SVLEN"] = size
 
-            ### Standard filter
-            ##FILTER = "PASS"
-            ##median_alternate_likelihood = np.median([float(HOM_GENOTYPE_LIKELIHOOD), float(HET_GENOTYPE_LIKELIHOOD)])
-            ##if type_ == "DEL":
-            ##    if float(discordant_ratio) != 0 or float(split_ratio) != 0:
-            ##        if median_alternate_likelihood < 8: FILTER = "FAIL"
-            ##    else:
-            ##        if size < 1000:
-            ##            if median_alternate_likelihood < 18: FILTER = "FAIL"
-            ##        else:
-            ##            if size < 3000: FILTER = "FAIL"
-            ##            elif (3000 <= size < 5000) and median_alternate_likelihood < 20: FILTER = "FAIL"
-            ##            elif size >= 5000 and median_alternate_likelihood < 18: FILTER = "FAIL"
-            ##elif type_ == "DUP":
-            ##    if float(discordant_ratio) != 0 or float(split_ratio) != 0:
-            ##        if size  < 1000 and median_alternate_likelihood < 12: FILTER = "FAIL"
-            ##        if size >= 1000 and median_alternate_likelihood < 10: FILTER = "FAIL"
-
-            ### De novo filter
-
-
             record.samples[sample_name]["GT"] = (int(GEN.split("/")[0]), int(GEN.split("/")[1]))
-            record.samples[sample_name]["PE"] = round(float(discordant_ratio), 1)
-            record.samples[sample_name]["SR"] = round(float(split_ratio), 1)
-            record.samples[sample_name]["SC"] = round(float(snv_coverage), 1)
-            record.samples[sample_name]["NS"] = int(float(snvs))
-            record.samples[sample_name]["HA"] = round(float(heterozygous_allele_ratio), 1)
-            record.samples[sample_name]["NH"] = int(float(het_snvs))
-            record.samples[sample_name]["SQ"] = round(max(float(REF_QUAL), float(ALT_QUAL)), 1)
-            record.samples[sample_name]["GL"] = (round(float(REF_GENOTYPE_LIKELIHOOD), 1), round(float(HET_GENOTYPE_LIKELIHOOD), 1), round(float(HOM_GENOTYPE_LIKELIHOOD), 1))
+            record.samples[sample_name]["PE"] = round(discordant_ratio, 2)
+            record.samples[sample_name]["SR"] = round(split_ratio, 2)
+            record.samples[sample_name]["SC"] = round(snv_coverage, 2)
+            record.samples[sample_name]["NS"] = snvs
+            record.samples[sample_name]["HA"] = round(float(heterozygous_allele_ratio), 2)
+            record.samples[sample_name]["NH"] = het_snvs
+            record.samples[sample_name]["SQ"] = SQ 
+            record.samples[sample_name]["GL"] = (round(REF_GENOTYPE_LIKELIHOOD, 2), round(HET_GENOTYPE_LIKELIHOOD, 2), round(HOM_GENOTYPE_LIKELIHOOD, 2))
+
+
+            # Danny gets the median of the alternate allele likelihoods and puts that value in a variable called "non". I'll put it in a variable called "MEDIAN_ALTERNATE_LIKELIHOOD". (He also gets the median of the reference likelihood... why? It should be only 1 value.)
+            MEDIAN_ALTERNATE_LIKELIHOOD = np.median([HOM_GENOTYPE_LIKELIHOOD, HET_GENOTYPE_LIKELIHOOD])
+            # Danny also adds the split_ratio and discordant_ratio and puts that output in a variable called "breakpoint_feats" (and then later "feats"...). I'll put it in a variable called "breakpoint_features" 
+            breakpoint_features = discordant_ratio + split_ratio
+            # De novo filter
+            DENOVO_FILTER = "FAIL"
+            if Classifier in ("clf_highcov_del_gt1kb", "clf_highcov_del_lt1kb"):
+                if breakpoint_features > 0 and MEDIAN_ALTERNATE_LIKELIHOOD >= 12 and REF_GENOTYPE_LIKELIHOOD >= 12: DENOVO_FILTER = "PASS"
+                elif breakpoint_features == 0 and 1000 <= size < 3000 and MEDIAN_ALTERNATE_LIKELIHOOD >= 24 and REF_GENOTYPE_LIKELIHOOD >= 20: DENOVO_FILTER = "PASS"
+                elif breakpoint_features == 0 and 3000 <= size < 5000 and MEDIAN_ALTERNATE_LIKELIHOOD >= 20 and REF_GENOTYPE_LIKELIHOOD >= 20: DENOVO_FILTER = "PASS"
+                elif breakpoint_features == 0 and size >= 5000 and MEDIAN_ALTERNATE_LIKELIHOOD >= 20 and REF_GENOTYPE_LIKELIHOOD >= 18: DENOVO_FILTER = "PASS"
+            elif Classifier == "clf_dup_breakpoint":
+                if breakpoint_features > 0 and MEDIAN_ALTERNATE_LIKELIHOOD >= 11 and REF_GENOTYPE_LIKELIHOOD >= 11: DENOVO_FILTER = "PASS"
+                elif breakpoint_features == 0 and 3000 <= size < 100000 and MEDIAN_ALTERNATE_LIKELIHOOD >= 10 and REF_GENOTYPE_LIKELIHOOD >= 15: DENOVO_FILTER = "PASS"
+                elif breakpoint_features == 0 and size >= 100000 and MEDIAN_ALTERNATE_LIKELIHOOD >= 10 and REF_GENOTYPE_LIKELIHOOD >= 13: DENOVO_FILTER = "PASS"
+            elif Classifier == "clf_dup_har":
+                if size < 5000 and REF_GENOTYPE_LIKELIHOOD >= 18 and MEDIAN_ALTERNATE_LIKELIHOOD >= 18: DENOVO_FILTER = "PASS"
+                elif 5000 <= size < 100000 and REF_GENOTYPE_LIKELIHOOD >= 15 and MEDIAN_ALTERNATE_LIKELIHOOD >= 10: DENOVO_FILTER = "PASS"
+                elif size >= 100000 and REF_GENOTYPE_LIKELIHOOD >= 13 and MEDIAN_ALTERNATE_LIKELIHOOD >= 10: DENOVO_FILTER = "PASS" 
+            elif Classifier == "clf_del_malesexchrom":
+                if MEDIAN_ALTERNATE_LIKELIHOOD >= 8 and REF_GENOTYPE_LIKELIHOOD >= 8: DENOVO_FILTER = "PASS" 
+            elif Classifier == "clf_dup_malesexchrom":
+                if size >= 5000 and REF_GENOTYPE_LIKELIHOOD >= 10 and MEDIAN_ALTERNATE_LIKELIHOOD >= 10: DENOVO_FILTER = "PASS" 
+            record.info["DENOVO_FILTER"] = DENOVO_FILTER 
+
+            # Standard filter
+            FILTER = "PASS"
+            if Classifier in ("clf_highcov_del_gt1kb", "clf_highcov_del_lt1kb"):
+                if breakpoint_features > 0 and MEDIAN_ALTERNATE_LIKELIHOOD <= 8: FILTER = "FAIL"
+                elif breakpoint_features == 0:
+                    if "lt1kb" in Classifier:
+                        if MEDIAN_ALTERNATE_LIKELIHOOD < 18: FILTER = "FAIL"
+                    elif "gt1kb" in Classifier:
+                        if size < 3000: FILTER = "FAIL"
+                        elif 3000 <= size < 5000 and MEDIAN_ALTERNATE_LIKELIHOOD < 20: FILTER = "FAIL"
+                        elif size >= 5000 and MEDIAN_ALTERNATE_LIKELIHOOD < 18: FILTER = "FAIL"
+            elif Classifier == "clf_dup_breakpoint":
+                if breakpoint_features > 0:
+                    if size <  1000 and MEDIAN_ALTERNATE_LIKELIHOOD < 12: FILTER = "FAIL"
+                    if size >= 1000 and MEDIAN_ALTERNATE_LIKELIHOOD < 10: FILTER = "FAIL"
+                elif breakpoint_features == 0:
+                    if size < 3000: FILTER = "FAIL"
+                    elif size >= 3000 and MEDIAN_ALTERNATE_LIKELIHOOD < 12: FILTER = "FAIL"
+            elif Classifier == "clf_dup_har":
+                if MEDIAN_ALTERNATE_LIKELIHOOD < 8: FILTER = "FAIL" 
+                elif size < 3000 and MEDIAN_ALTERNATE_LIKELIHOOD < 18: FILTER = "FAIL"
+                elif size >= 3000 and MEDIAN_ALTERNATE_LIKELIHOOD < 13: FILTER = "FAIL"
+            elif Classifier == "clf_del_malesexchrom":
+                if MEDIAN_ALTERNATE_LIKELIHOOD < 8 and breakpoint_features != 0: FILTER = "FAIL"
+                elif MEDIAN_ALTERNATE_LIKELIHOOD < 10 and breakpoint_features == 0 and size <= 1000: FILTER = "FAIL"
+                elif size < 1000 and breakpoint_features == 0: FILTER = "FAIL" 
+            elif Classifier == "clf_dup_malesexchrom":
+                if size < 5000: FILTER = "FAIL"
+                elif size >= 5000 and MEDIAN_ALTERNATE_LIKELIHOOD < 10: FILTER = "FAIL"
+                elif breakpoint_features == 0: FILTER = "FAIL"
+
+            record.filter.add(FILTER)
             vcf.write(record)
     
     vcf.close()

@@ -9,6 +9,7 @@ import sys
 from time import gmtime, strftime
 
 current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
+print("Running SV2. The output filenames will be prepended with the start time: {}".format(current_time))
 
 # For step 1
 from make_feature_table import make_GC_content_reference_table

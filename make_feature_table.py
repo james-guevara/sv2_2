@@ -221,16 +221,13 @@ def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes
                 locus_HADs.append(AR)
        
         snv_features_table[(chrom, start, end)] = {}
-        snv_features_table[(chrom, start, end)]["snv_coverage"] = np.nan # Change to float("nan") maybe
-        snv_features_table[(chrom, start, end)]["heterozygous_allele_ratio"] = np.nan # Change to float("nan") maybe
+        snv_features_table[(chrom, start, end)]["snv_coverage"] = 0. # Change to float("nan") maybe (originally this was np.nan)
+        snv_features_table[(chrom, start, end)]["heterozygous_allele_ratio"] = np.nan # Change to float("nan") maybe (originally this was np.nan)
         if len(locus_depths) > 0:
             if chrom in df_preprocessing_table["chrom"].values: snv_features_table[(chrom, start, end)]["snv_coverage"] = float(np.nanmedian(locus_depths))/df_preprocessing_table[df_preprocessing_table["chrom"] == chrom]["median_chrom_depth"].values[0]
             snv_features_table[(chrom, start, end)]["heterozygous_allele_ratio"] = np.nanmedian(locus_HADs)
         snv_features_table[(chrom, start, end)]["snvs"] = len(locus_depths)
         snv_features_table[(chrom, start, end)]["het_snvs"] = len(locus_HADs) 
-
-        if np.isnan(snv_features_table[(chrom, start, end)]["snv_coverage"]): snv_features_table[(chrom, start, end)]["snv_coverage"] = "NaN"
-        if np.isnan(snv_features_table[(chrom, start, end)]["heterozygous_allele_ratio"]): snv_features_table[(chrom, start, end)]["heterozygous_allele_ratio"] = "NaN"
 
     return snv_features_table
 
@@ -345,15 +342,15 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
                     # Get discordant reads
                     if (windows[0][1] <= alignment.reference_start <= windows[0][2] and windows[1][1] <= mate_position <= windows[1][2]) or (windows[1][1] <= alignment.reference_start <= windows[1][2] and windows[0][1] <= mate_position <= windows[0][2]):
                         discordant_read_count += 1
-                    # DEBUGGING
-                    # TEST ON original 1000 Genomes file and make sure that split-read ratio values are consistent
-                    # Get split reads (but they're all 0 if we do it this way)
-                    if alignment.is_supplementary:
-                        second_alignment = alignment.get_tag("SA").split(",")
-                        if len(second_alignment) != 0:
-                            if second_alignment[0] == chrom: # The value c that Danny uses for some reason (and leads to a split_read count of 0...) # c SHOULD BE chromosome instead (the second alignment should be on the same chromosome as the first one)
-                                if (windows[0][1] <= alignment.reference_start <= windows[0][2] and windows[1][1] <= int(second_alignment[1]) - 1 <= windows[1][2]) or (windows[1][1] <= alignment.reference_start <= windows[1][2] and windows[0][1] <= int(second_alignment[1]) - 1 <= windows[0][2]):
-                                    split_read_count += 1
+                # DEBUGGING
+                # TEST ON original 1000 Genomes file and make sure that split-read ratio values are consistent
+                # Get split reads (but they're all 0 if we do it this way)
+                if alignment.is_supplementary:
+                    second_alignment = alignment.get_tag("SA").split(",")
+                    if len(second_alignment) != 0:
+                        if second_alignment[0] == chrom: # The value c that Danny uses for some reason (and leads to a split_read count of 0...) # c SHOULD BE chromosome instead (the second alignment should be on the same chromosome as the first one)
+                            if (windows[0][1] <= alignment.reference_start <= windows[0][2] and windows[1][1] <= int(second_alignment[1]) - 1 <= windows[1][2]) or (windows[1][1] <= alignment.reference_start <= windows[1][2] and windows[0][1] <= int(second_alignment[1]) - 1 <= windows[0][2]):
+                                split_read_count += 1
                 
                 if (not alignment.is_supplementary) and alignment.is_proper_pair and abs(alignment.template_length) < ci_insert_size_insert_mad:
                     concordant_read_count += 1
