@@ -298,7 +298,7 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
                     if abs(alignment.template_length) >= ci_insert_size_insert_mad: continue
                     if alignment.reference_id != alignment.next_reference_id: continue
                     alignment_count += 1
-            coverage = ((float(alignment_count)/svlen)*df_preprocessing_table[df_preprocessing_table["chrom"] == "GENOME"]["median_read_length"].values[0])/df_preprocessing_table[df_preprocessing_table["chrom"] == chrom]["normalized_chrom_coverage"].values[0]
+            coverage = ((float(alignment_count)/basepair_span)*df_preprocessing_table[df_preprocessing_table["chrom"] == "GENOME"]["median_read_length"].values[0])/df_preprocessing_table[df_preprocessing_table["chrom"] == chrom]["normalized_chrom_coverage"].values[0]
         else: # When SV length is less than 1000, we can use this more cumbersome method to estimate coverage.
             median_depth_of_coverage = np.nan
             positional_depth_of_coverage = {}
