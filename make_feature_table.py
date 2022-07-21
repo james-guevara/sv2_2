@@ -215,6 +215,8 @@ def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes
                 if "GT" not in record.samples[0]: continue
 
                 locus_depths.append(record.samples[0]["DP"])
+
+                if record.samples[0]["GT"][0] == record.samples[0]["GT"][1]: continue
                 if record.samples[0]["AD"][0] == 0 or record.samples[0]["AD"][1] == 0: continue
                 AR = float(record.samples[0]["AD"][0])/float(record.samples[0]["AD"][1])
                 if AR > 1: AR = 1/AR

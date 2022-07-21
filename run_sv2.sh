@@ -56,7 +56,7 @@
 python run_sv2.py --alignment_file /expanse/lustre/projects/ddp195/eiovino/cram_HG002/HG002.100_reads.markdup.recal.cram \
                   --reference_fasta /expanse/lustre/projects/ddp195/j3guevar/resources/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla.fa \
                   --snv_vcf_file hg002/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz \
-                  --sv_bed_file hg002/hg002_results/HG002.merged.sorted.bed \
+                  --sv_bed_file hg002/hg002_results/HG002.merged.sorted.test5.bed \
                   --sex male \
-                  --sample_name HG002 \
+                  --sample_name HG002_har_test \
                   --exclude_regions_bed data/excluded_regions_bed_files/hg38_excluded.bed.gz
