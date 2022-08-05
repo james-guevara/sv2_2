@@ -149,6 +149,10 @@ def make_sv_interval_table(sv_bed, exclude_bed, reference_fasta):
     # Add ID to fourth column of BED file 
     sv_list = []
     for index, sv in enumerate(sv_bed): 
+        # ADDING AND TESTING
+        svtype = sv[3]
+        if svtype not in ("DEL", "DUP"): continue
+        # ADDING AND TESTING DONE
         ID = "#".join([sv[0], sv[1], sv[2], sv[3]])
         sv_list.append([sv[0], sv[1], sv[2], sv[3] + ";" + ID])
     sv_list_bed = BedTool(sv_list)
