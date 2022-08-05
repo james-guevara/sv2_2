@@ -146,7 +146,6 @@ def make_sv_interval_table(sv_bed, exclude_bed, reference_fasta):
                 sv_interval_table[(chrom, start, end, svtype)][item_name].append((sv[0], int(sv[1]), int(sv[2])))
         return sv_interval_table
 
-
     # Add ID to fourth column of BED file 
     sv_list = []
     for index, sv in enumerate(sv_bed): 

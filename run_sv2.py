@@ -21,7 +21,6 @@ from make_feature_table import make_snv_features_table
 from make_feature_table import make_alignment_features_table
 # For step 2
 from classify import load_features
-from classify import load_features_from_dataframe
 from classify import run_highcov_del_gt1kb_classifier 
 from classify import run_highcov_del_lt1kb_classifier 
 from classify import run_dup_breakpoint_classifier
@@ -129,6 +128,10 @@ exclude_bed = BedTool("chrZ 0 1", from_string = True)
 if args.exclude_regions_bed: exclude_bed = BedTool(args.exclude_regions_bed).merge()
 sv_interval_table = make_sv_interval_table(sv_bed, exclude_bed, args.reference_fasta)
 
+if (len(sv_interval_table) == 0):
+    print("The SV interval table (after using the 'exclude' bed file) is empty.", file = sys.stderr) 
+    sys.exit()
+
 # Make SNV features table (for each filtered SV call)
 snv_features_table = make_snv_features_table(args.snv_vcf_file, sv_bed, sv_interval_table, svtypes, df_preprocessing_table, threads)
 
@@ -140,6 +143,10 @@ df_alignment_features_table = pd.DataFrame.from_dict(alignment_features_table, o
 df_snv_features_table = pd.DataFrame.from_dict(snv_features_table, orient = "index")
 df_features_table = df_alignment_features_table.join(df_snv_features_table).reset_index().rename(columns = {"level_0": "chrom", "level_1": "start", "level_2": "end"})
 
+if (df_features_table.empty):
+    print("The feature table dataframe is empty.", file = sys.stderr) 
+    sys.exit()
+
 # Save SV features table
 features_table_filepath =  "{}/{}_sv2_features_{}.tsv".format(output_folder, args.sample_name, current_time)
 df_features_table.to_csv(features_table_filepath, sep = "\t", index = False)
@@ -149,7 +156,6 @@ print("Making feature table step done at {}".format(strftime("%Y-%m-%d_%H.%M.%S"
 """ classify.py step """
 print("Genotyping SV calls at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
 
-# df, df_male_sex_chromosomes = load_features_from_dataframe(df_features_table, args.sex)
 df, df_male_sex_chromosomes = load_features(features_table_filepath, args.sex)
 
 # Set default filepaths for the classifiers

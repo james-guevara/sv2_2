@@ -10,15 +10,7 @@ def initialize_output_dataframe(columns = ["chrom", "start", "end", "type", "HOM
 def load_features(features_table_filepath, sex):
     df = pd.read_csv(features_table_filepath, sep = "\t")
     df_male_sex_chromosomes = pd.DataFrame(columns = df.columns)
-    if sex == "male":
-        # Filter out the sex chromosome SVs from the main dataframe
-        df_male_sex_chromosomes = df[(mask := (df["chrom"].str.contains("X") | df["chrom"].str.contains("Y")))]
-        df = df[~mask]
-    return df, df_male_sex_chromosomes
-
-def load_features_from_dataframe(df_original, sex):
-    df = df_original 
-    df_male_sex_chromosomes = pd.DataFrame(columns = df.columns)
+    print(df_male_sex_chromosomes)
     if sex == "male":
         # Filter out the sex chromosome SVs from the main dataframe
         df_male_sex_chromosomes = df[(mask := (df["chrom"].str.contains("X") | df["chrom"].str.contains("Y")))]
