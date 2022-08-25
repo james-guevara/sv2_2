@@ -1,6 +1,7 @@
 import argparse
 import datetime
 import numpy as np
+import os
 import pandas as pd
 from pathlib import Path
 from pybedtools import BedTool
@@ -8,6 +9,7 @@ import sys
 from time import gmtime, strftime
 
 current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
+print("Running SV2. The output filenames will be prepended with the start time: {}".format(current_time))
 
 # For step 1
 from make_feature_table import make_GC_content_reference_table
@@ -19,7 +21,6 @@ from make_feature_table import make_snv_features_table
 from make_feature_table import make_alignment_features_table
 # For step 2
 from classify import load_features
-from classify import load_features_from_dataframe
 from classify import run_highcov_del_gt1kb_classifier 
 from classify import run_highcov_del_lt1kb_classifier 
 from classify import run_dup_breakpoint_classifier
@@ -47,9 +48,19 @@ parser.add_argument("--clf_folder", help = "Folder that contains the classifiers
 # From make_vcf.py step
 parser.add_argument("--sample_name", help = "Sample name", required = True)
 parser.add_argument("--output_folder", help = "Output folder for output files (if not used, then output folder is set to 'sv2_output')")
+# Multithreading for pysam
+parser.add_argument("--threads", help = "Threads used  for pysam. Default is 1.", type = int)
 args = parser.parse_args()
 
 sv2_command = " ".join(sys.argv)
+
+# Multithreading (used for pysam commands)
+threads: int = 1
+if args.threads: 
+    threads = args.threads
+    if threads > len(os.sched_getaffinity(0)):
+        print("You're trying to allocate more threads than workers you have available. Allocate fewer threads.", file = sys.stderr) 
+        sys.exit()
 
 # If regions_bed or gc_reference_table aren't specified, we should look for them using the absolute path of this script (and these files should be found in the data folder, which is inside the same parent folder as this script)
 script_folder = Path(__file__).parent.absolute()
@@ -68,6 +79,7 @@ if args.output_folder: output_folder = Path(args.output_folder)
 output_folder.mkdir(parents = True, exist_ok = True)
 
 """ make_feature_table.py step """
+print("Making feature table at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
 
 # Chromosomes to analyze (1,... 22, X, Y)
 chroms = list(map(str, np.arange(1, 22 + 1)))
@@ -84,10 +96,10 @@ regions_table = make_regions_table(regions_bed)
 
 if not args.preprocessing_table_input:
     # Make the CRAM/BAM preprocessing table
-    alignment_preprocessing_table = make_alignment_preprocessing_table(args.alignment_file, args.reference_fasta, chroms, regions_table)
+    alignment_preprocessing_table = make_alignment_preprocessing_table(args.alignment_file, args.reference_fasta, chroms, regions_table, threads)
     
     # Make the SNV preprocessing table
-    snv_preprocessing_table = get_snv_preprocessing_data(args.snv_vcf_file, chroms, regions_table)
+    snv_preprocessing_table = get_snv_preprocessing_data(args.snv_vcf_file, chroms, regions_table, threads)
 
     # Merge and output the preprocessing table
     df_alignment_preprocessing_table = pd.DataFrame.from_dict(alignment_preprocessing_table, orient = "index")
@@ -116,16 +128,24 @@ exclude_bed = BedTool("chrZ 0 1", from_string = True)
 if args.exclude_regions_bed: exclude_bed = BedTool(args.exclude_regions_bed).merge()
 sv_interval_table = make_sv_interval_table(sv_bed, exclude_bed, args.reference_fasta)
 
+if (len(sv_interval_table) == 0):
+    print("The SV interval table (after using the 'exclude' bed file) is empty.", file = sys.stderr) 
+    sys.exit()
+
 # Make SNV features table (for each filtered SV call)
-snv_features_table = make_snv_features_table(args.snv_vcf_file, sv_bed, sv_interval_table, svtypes, df_preprocessing_table)
+snv_features_table = make_snv_features_table(args.snv_vcf_file, sv_bed, sv_interval_table, svtypes, df_preprocessing_table, threads)
 
 # Make CRAM/BAM features table (for each filtered SV call)
-alignment_features_table = make_alignment_features_table(args.alignment_file, args.reference_fasta, sv_bed, df_preprocessing_table, sv_interval_table, svtypes, GC_content_reference_table)
+alignment_features_table = make_alignment_features_table(args.alignment_file, args.reference_fasta, sv_bed, df_preprocessing_table, sv_interval_table, svtypes, GC_content_reference_table, threads)
 
 # Merge and output feature table
 df_alignment_features_table = pd.DataFrame.from_dict(alignment_features_table, orient = "index")
 df_snv_features_table = pd.DataFrame.from_dict(snv_features_table, orient = "index")
 df_features_table = df_alignment_features_table.join(df_snv_features_table).reset_index().rename(columns = {"level_0": "chrom", "level_1": "start", "level_2": "end"})
+
+if (df_features_table.empty):
+    print("The feature table dataframe is empty.", file = sys.stderr) 
+    sys.exit()
 
 # Save SV features table
 features_table_filepath =  "{}/{}_sv2_features_{}.tsv".format(output_folder, args.sample_name, current_time)
@@ -134,8 +154,8 @@ df_features_table.to_csv(features_table_filepath, sep = "\t", index = False)
 print("Making feature table step done at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
 
 """ classify.py step """
+print("Genotyping SV calls at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
 
-# df, df_male_sex_chromosomes = load_features_from_dataframe(df_features_table, args.sex)
 df, df_male_sex_chromosomes = load_features(features_table_filepath, args.sex)
 
 # Set default filepaths for the classifiers
@@ -177,7 +197,12 @@ df_preds_concat_sorted = pd.concat([df_preds_concat_sorted, df_malesexchrom_pred
 df_preds_concat_sorted["ALT_GENOTYPE_LIKELIHOOD"] = df_preds_concat_sorted["HET_GENOTYPE_LIKELIHOOD"] + df_preds_concat_sorted["HOM_GENOTYPE_LIKELIHOOD"]
 df_preds_concat_sorted["REF_QUAL"] = -10.0*np.log10(1.0 - df_preds_concat_sorted["REF_GENOTYPE_LIKELIHOOD"].astype(float))
 df_preds_concat_sorted["ALT_QUAL"] = -10.0*np.log10(df_preds_concat_sorted["REF_GENOTYPE_LIKELIHOOD"].astype(float))
-df_preds_concat_sorted = df_preds_concat_sorted[["chrom", "start", "end", "type", "size", "coverage", "coverage_GCcorrected", "discordant_ratio", "split_ratio", "snv_coverage", "heterozygous_allele_ratio", "snvs", "het_snvs", "ALT_GENOTYPE_LIKELIHOOD", "REF_QUAL", "ALT_QUAL", "HOM_GENOTYPE_LIKELIHOOD", "HET_GENOTYPE_LIKELIHOOD", "REF_GENOTYPE_LIKELIHOOD"]]
+
+
+# df_preds_concat_sorted["ID"] = sample_name
+# df_preds_concat_sorted = df_preds_concat_sorted[["chrom", "start", "end", "type", "size", "coverage", "coverage_GCcorrected", "discordant_ratio", "split_ratio", "snv_coverage", "heterozygous_allele_ratio", "snvs", "het_snvs", "ALT_GENOTYPE_LIKELIHOOD", "REF_QUAL", "ALT_QUAL", "HOM_GENOTYPE_LIKELIHOOD", "HET_GENOTYPE_LIKELIHOOD", "REF_GENOTYPE_LIKELIHOOD"]]
+df_preds_concat_sorted = df_preds_concat_sorted[["chrom", "start", "end", "type", "size", "coverage", "coverage_GCcorrected", "discordant_ratio", "split_ratio", "snv_coverage", "heterozygous_allele_ratio", "snvs", "het_snvs", "REF_GENOTYPE_LIKELIHOOD", "HET_GENOTYPE_LIKELIHOOD", "HOM_GENOTYPE_LIKELIHOOD", "ALT_GENOTYPE_LIKELIHOOD", "REF_QUAL", "ALT_QUAL", "Classifier" ]]
+# df_preds_concat_sorted = df_preds_concat_sorted[["CHROM", "START", "END", "TYPE", "LENGTH", "ID", "COVERAGE", "COVERAGE_GC_CORRECTED", "discordant_ratio", "split_ratio", "snv_coverage", "heterozygous_allele_ratio", "snvs", "het_snvs", "ALT_GENOTYPE_LIKELIHOOD", "REF_QUAL", "ALT_QUAL", "HOM_GENOTYPE_LIKELIHOOD", "HET_GENOTYPE_LIKELIHOOD", "REF_GENOTYPE_LIKELIHOOD"]]
 
 # Initialize the GEN column to the missing genotype value ./.
 df_preds_concat_sorted["GEN"] = "./."
@@ -190,6 +215,7 @@ df_preds_concat_sorted.to_csv(genotype_table_filepath, sep = "\t", index = False
 print("Genotyping step done at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
 
 """ make_vcf.py step """
+print("Making VCF at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
 make_vcf(args.sample_name, args.reference_fasta, genotype_table_filepath, output_folder, sv2_command, current_time)
 
 print("Making VCF step done at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))

@@ -1,5 +1,5 @@
 # SV2_2
-This is a refactored version of SV2. Tested with Python 3.9.7.
+This is a refactored version of SV2. Tested with Python 3.9.7. We recommend creating a separate conda/miniconda (or mamba/micromamba) environment with this version of Python, and then using your created environment's `pip` command to install the requirements, i.e. `pip install --requirements.txt`
 
 Example run command:
 ```

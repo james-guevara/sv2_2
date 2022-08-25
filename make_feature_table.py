@@ -29,7 +29,7 @@ def make_regions_table(bed_regions_filepath):
     return regions_table 
 
 # Get the alignment preprocessing data (coverage, median read lengths, median insert sizes, etc.):
-def make_alignment_preprocessing_table(alignment_filepath, reference_filepath, chroms, regions_table):
+def make_alignment_preprocessing_table(alignment_filepath, reference_filepath, chroms, regions_table, threads = 1):
     alignment_preprocessing_table = {}
 
     genome_coverage_values: list[int] = []
@@ -41,7 +41,7 @@ def make_alignment_preprocessing_table(alignment_filepath, reference_filepath, c
     # Determine whether the alignment file is a bam file or a cram file:
     mode = "rc"
     if alignment_filepath.endswith(".bam"): mode = "rb"
-    alignment_iterator = pysam.AlignmentFile(alignment_filepath, mode = mode, reference_filename = reference_filepath)
+    alignment_iterator = pysam.AlignmentFile(alignment_filepath, mode = mode, reference_filename = reference_filepath, threads = threads)
 
     # Later on, I will want to allow the user to specify the index_filename (i.e. the explicit path to the index file)
     # https://readthedocs.org/projects/pysam/downloads/pdf/stable/
@@ -103,9 +103,9 @@ def make_alignment_preprocessing_table(alignment_filepath, reference_filepath, c
 
 
 # Get the SNV preprocessing data (from the SNV VCF):
-def get_snv_preprocessing_data(snv_vcf_filepath, chroms, regions_table):
+def get_snv_preprocessing_data(snv_vcf_filepath, chroms, regions_table, threads = 1):
     snv_preprocessing_table = {} 
-    snv_vcf_iterator = pysam.VariantFile(snv_vcf_filepath, mode = "r") 
+    snv_vcf_iterator = pysam.VariantFile(snv_vcf_filepath, mode = "r", threads = threads) 
     for chrom in snv_vcf_iterator.header.contigs:
         if chrom.removeprefix("chr") not in chroms: continue
         if chrom.removeprefix("chr") not in regions_table: continue
@@ -120,7 +120,7 @@ def get_snv_preprocessing_data(snv_vcf_filepath, chroms, regions_table):
             try:
                 records = snv_vcf_iterator.fetch(region = "{}:{}-{}".format(chrom, start, end))
             except ValueError:
-                sys.stderr.write("WARNING: region {}:{}-{} not present in SNV VCF.\n".format(chrom, start, end))
+                print("WARNING: region {}:{}-{} not present in SNV VCF.\n".format(chrom, start, end), file = sys.stderr)
                 continue
 
             for record in records:
@@ -146,10 +146,13 @@ def make_sv_interval_table(sv_bed, exclude_bed, reference_fasta):
                 sv_interval_table[(chrom, start, end, svtype)][item_name].append((sv[0], int(sv[1]), int(sv[2])))
         return sv_interval_table
 
-
     # Add ID to fourth column of BED file 
     sv_list = []
     for index, sv in enumerate(sv_bed): 
+        # ADDING AND TESTING
+        svtype = sv[3]
+        if svtype not in ("DEL", "DUP"): continue
+        # ADDING AND TESTING DONE
         ID = "#".join([sv[0], sv[1], sv[2], sv[3]])
         sv_list.append([sv[0], sv[1], sv[2], sv[3] + ";" + ID])
     sv_list_bed = BedTool(sv_list)
@@ -185,9 +188,9 @@ def make_sv_interval_table(sv_bed, exclude_bed, reference_fasta):
     sv_interval_table = make_sv_interval_table_items(sv_slop_right_flank_bed, "WINDOWS", sv_interval_table)
     return sv_interval_table
 
-def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes, df_preprocessing_table):
+def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes, df_preprocessing_table, threads = 1):
     snv_features_table = {}
-    snv_vcf_iterator = pysam.VariantFile(snv_vcf_filepath)
+    snv_vcf_iterator = pysam.VariantFile(snv_vcf_filepath, threads = threads)
     for sv in sv_bed:
         chrom, start, end, svtype = sv[0], int(sv[1]), int(sv[2]), sv[3]
         if (chrom, start, end, svtype) not in sv_interval_table: continue
@@ -206,7 +209,7 @@ def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes
             try: 
                 records = snv_vcf_iterator.fetch(region = "{}:{}-{}".format(chrom, str(start_), str(end_)))
             except ValueError:
-                sys.stderr.write("WARNING: region {}:{}-{} not present in SNV VCF.\n".format(chrom, str(start_), str(end_)))
+                print("WARNING: region {}:{}-{} not present in SNV VCF.\n".format(chrom, str(start_), str(end_)), file = sys.stderr)
                 continue
 
             for record in records:
@@ -215,24 +218,25 @@ def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes
                 if "GT" not in record.samples[0]: continue
 
                 locus_depths.append(record.samples[0]["DP"])
+
+                if record.samples[0]["GT"][0] == record.samples[0]["GT"][1]: continue
                 if record.samples[0]["AD"][0] == 0 or record.samples[0]["AD"][1] == 0: continue
                 AR = float(record.samples[0]["AD"][0])/float(record.samples[0]["AD"][1])
                 if AR > 1: AR = 1/AR
                 locus_HADs.append(AR)
        
         snv_features_table[(chrom, start, end)] = {}
-        snv_features_table[(chrom, start, end)]["snv_coverage"] = np.nan
-        if chrom in df_preprocessing_table["chrom"].values: snv_features_table[(chrom, start, end)]["snv_coverage"] = float(np.nanmedian(locus_depths))/df_preprocessing_table[df_preprocessing_table["chrom"] == chrom]["median_chrom_depth"].values[0]
-        snv_features_table[(chrom, start, end)]["heterozygous_allele_ratio"] = np.nanmedian(locus_HADs)
+        snv_features_table[(chrom, start, end)]["snv_coverage"] = 0. # Change to float("nan") maybe (originally this was np.nan)
+        snv_features_table[(chrom, start, end)]["heterozygous_allele_ratio"] = np.nan # Change to float("nan") maybe (originally this was np.nan)
+        if len(locus_depths) > 0:
+            if chrom in df_preprocessing_table["chrom"].values: snv_features_table[(chrom, start, end)]["snv_coverage"] = float(np.nanmedian(locus_depths))/df_preprocessing_table[df_preprocessing_table["chrom"] == chrom]["median_chrom_depth"].values[0]
+            snv_features_table[(chrom, start, end)]["heterozygous_allele_ratio"] = np.nanmedian(locus_HADs)
         snv_features_table[(chrom, start, end)]["snvs"] = len(locus_depths)
         snv_features_table[(chrom, start, end)]["het_snvs"] = len(locus_HADs) 
 
-        if np.isnan(snv_features_table[(chrom, start, end)]["snv_coverage"]): snv_features_table[(chrom, start, end)]["snv_coverage"] = "NaN"
-        if np.isnan(snv_features_table[(chrom, start, end)]["heterozygous_allele_ratio"]): snv_features_table[(chrom, start, end)]["heterozygous_allele_ratio"] = "NaN"
-
     return snv_features_table
 
-def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed, df_preprocessing_table, sv_interval_table, svtypes, GC_content_reference_table):
+def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed, df_preprocessing_table, sv_interval_table, svtypes, GC_content_reference_table, threads = 1):
     def calculate_gc_content_fraction(sv_interval_table_nucleotide_content_list):
         # https://daler.github.io/pybedtools/autodocs/pybedtools.bedtool.BedTool.nucleotide_content.html
         # The elements in each sublist are as follows: 
@@ -267,7 +271,7 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
 
     mode = "rc"
     if alignment_filepath.endswith(".bam"): mode = "rb"
-    alignment_iterator = pysam.AlignmentFile(alignment_filepath, mode = mode, reference_filename = reference_filepath)
+    alignment_iterator = pysam.AlignmentFile(alignment_filepath, mode = mode, reference_filename = reference_filepath, threads = threads)
     for index, sv in enumerate(sv_bed):
         chrom, start, end, svtype = sv[0], int(sv[1]), int(sv[2]), sv[3]
         if (chrom, start, end, svtype) not in sv_interval_table: continue 
@@ -277,17 +281,31 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
         sv_span = sv_interval_table[(chrom, start, end, svtype)]["SV_SPAN"]
         flank_span = sv_interval_table[(chrom, start, end, svtype)]["FLANK_SPAN"]
         windows = sv_interval_table[(chrom, start, end, svtype)]["WINDOWS"]
-        
-        read_count: int = 0
-        alignment_count: int = 0
-        basepair_span: int = 0
-        for span in sv_span:
-            for alignment in alignment_iterator.fetch(contig = span[0], start = span[1], end = span[2]):
-                basepair_span += span[2] - span[1]
-                alignment_count += 1
 
-        median_depth_of_coverage = np.nan
-        if svlen <= 1000:
+        # Initialize coverage, which is estimated differently depending on the length of the SV. 
+        coverage = np.nan
+        coverage_GCcorrected = np.nan
+        if chrom not in df_preprocessing_table["chrom"].values: pass
+        elif svlen > 1000:
+            read_count: int = 0
+            alignment_count: int = 0
+            basepair_span: int = 0
+            for span in sv_span:
+                basepair_span += span[2] - span[1]
+                for alignment in alignment_iterator.fetch(contig = span[0], start = span[1], end = span[2]):
+                    if (alignment.is_reverse == alignment.mate_is_reverse): continue
+                    if not alignment.is_proper_pair: continue
+                    if alignment.is_qcfail: continue
+                    if alignment.mapping_quality < 10: continue
+                    if alignment.is_unmapped: continue
+                    if alignment.mate_is_unmapped: continue
+                    if alignment.is_duplicate: continue
+                    if abs(alignment.template_length) >= ci_insert_size_insert_mad: continue
+                    if alignment.reference_id != alignment.next_reference_id: continue
+                    alignment_count += 1
+            coverage = ((float(alignment_count)/basepair_span)*df_preprocessing_table[df_preprocessing_table["chrom"] == "GENOME"]["median_read_length"].values[0])/df_preprocessing_table[df_preprocessing_table["chrom"] == chrom]["normalized_chrom_coverage"].values[0]
+        else: # When SV length is less than 1000, we can use this more cumbersome method to estimate coverage.
+            median_depth_of_coverage = np.nan
             positional_depth_of_coverage = {}
             for span in sv_span:
                 depth_result = alignment_iterator.count_coverage(contig = span[0], start = span[1] - 1, stop = span[2], read_callback = check_read)
@@ -295,8 +313,9 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
                     positional_depth_of_coverage[span[1] + 1 + i] = depth_result[0][i] + depth_result[1][i] + depth_result[2][i] + depth_result[3][i]
             positional_depth_of_coverage_array = np.array(list(positional_depth_of_coverage.values()))
             median_depth_of_coverage = np.median(positional_depth_of_coverage_array)
+            coverage = float(median_depth_of_coverage)/df_preprocessing_table[df_preprocessing_table["chrom"] == chrom]["normalized_chrom_coverage"].values[0]
 
-
+        # Correcting coverage for GC content...
         gc_content_fraction = calculate_gc_content_fraction(sv_interval_table[(chrom, start, end, svtype)]["nucleotide_content"])
         base = 5
         gc_content = int(base * round((100*gc_content_fraction)/5))
@@ -304,6 +323,9 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
         gc_norm_factor_depth_of_coverage = 1.0
         if ("PCR-READCOUNT", gc_content) in GC_content_reference_table: gc_norm_factor_read_count = GC_content_reference_table[("PCR-DOC", gc_content)]
         if ("PCR-DOC", gc_content) in GC_content_reference_table: gc_norm_factor_depth_of_coverage = GC_content_reference_table[("PCR-DOC", gc_content)]
+        # DEBUGGING
+        # Maybe change adjusted coverage value?
+        coverage_GCcorrected = gc_norm_factor_read_count * coverage 
 
         split_read_count: int = 0
         concordant_read_count: int = 0
@@ -313,8 +335,8 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
         discordant_read_ratio: float = 0.0
         for flank in flank_span:
             for alignment in alignment_iterator.fetch(contig = flank[0], start = flank[1], end = flank[2]):
-                if alignment.is_qcfail == True: continue
-                if alignment.is_duplicate == True: continue
+                if alignment.is_qcfail: continue
+                if alignment.is_duplicate: continue
                 if alignment.mapping_quality < 10: continue
                 if alignment.is_unmapped: continue
                 if alignment.is_reverse == alignment.mate_is_reverse: continue
@@ -325,13 +347,15 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
                     # Get discordant reads
                     if (windows[0][1] <= alignment.reference_start <= windows[0][2] and windows[1][1] <= mate_position <= windows[1][2]) or (windows[1][1] <= alignment.reference_start <= windows[1][2] and windows[0][1] <= mate_position <= windows[0][2]):
                         discordant_read_count += 1
-                    # Get split reads (but they're all 0 if we do it this way)
-                    if alignment.is_supplementary:
-                        second_alignment = alignment.get_tag("SA").split(",")
-                        if len(second_alignment) != 0:
-                            if second_alignment[0] == chrom: # The value c that Danny uses for some reason (and leads to a split_read count of 0...) # c SHOULD BE chromosome instead (the second alignment should be on the same chromosome as the first one)
-                                if (windows[0][1] <= alignment.reference_start <= windows[0][2] and windows[1][1] <= int(second_alignment[1]) - 1 <= windows[1][2]) or (windows[1][1] <= alignment.reference_start <= windows[1][2] and windows[0][1] <= int(second_alignment[1]) - 1 <= windows[0][2]):
-                                    split_read_count += 1
+                # DEBUGGING
+                # TEST ON original 1000 Genomes file and make sure that split-read ratio values are consistent
+                # Get split reads (but they're all 0 if we do it this way)
+                if alignment.is_supplementary:
+                    second_alignment = alignment.get_tag("SA").split(",")
+                    if len(second_alignment) != 0:
+                        if second_alignment[0] == chrom: # The value c that Danny uses for some reason (and leads to a split_read count of 0...) # c SHOULD BE chromosome instead (the second alignment should be on the same chromosome as the first one)
+                            if (windows[0][1] <= alignment.reference_start <= windows[0][2] and windows[1][1] <= int(second_alignment[1]) - 1 <= windows[1][2]) or (windows[1][1] <= alignment.reference_start <= windows[1][2] and windows[0][1] <= int(second_alignment[1]) - 1 <= windows[0][2]):
+                                split_read_count += 1
                 
                 if (not alignment.is_supplementary) and alignment.is_proper_pair and abs(alignment.template_length) < ci_insert_size_insert_mad:
                     concordant_read_count += 1
@@ -351,16 +375,8 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
         alignment_features_table[(chrom, start, end)] = {}
         alignment_features_table[(chrom, start, end)]["type"] = svtype
         alignment_features_table[(chrom, start, end)]["size"] = svlen
-        if chrom not in df_preprocessing_table["chrom"].values:
-            alignment_features_table[(chrom, start, end)]["coverage"] = np.nan
-            alignment_features_table[(chrom, start, end)]["coverage_GCcorrected"] = np.nan
-        elif svlen > 1000:
-            alignment_features_table[(chrom, start, end)]["coverage"] = ((float(alignment_count)/svlen)*df_preprocessing_table[df_preprocessing_table["chrom"] == "GENOME"]["median_read_length"].values[0])/df_preprocessing_table[df_preprocessing_table["chrom"] == chrom]["normalized_chrom_coverage"].values[0]
-            alignment_features_table[(chrom, start, end)]["coverage_GCcorrected"] = gc_norm_factor_read_count * alignment_features_table[(chrom, start, end)]["coverage"] 
-        else:
-            alignment_features_table[(chrom, start, end)]["coverage"] = float(median_depth_of_coverage)/df_preprocessing_table[df_preprocessing_table["chrom"] == chrom]["normalized_chrom_coverage"].values[0]
-            alignment_features_table[(chrom, start, end)]["coverage_GCcorrected"] = gc_norm_factor_depth_of_coverage * alignment_features_table[(chrom, start, end)]["coverage"] 
-
+        alignment_features_table[(chrom, start, end)]["coverage"] = coverage
+        alignment_features_table[(chrom, start, end)]["coverage_GCcorrected"] = coverage_GCcorrected
         alignment_features_table[(chrom, start, end)]["discordant_ratio"] = discordant_read_ratio 
         alignment_features_table[(chrom, start, end)]["split_ratio"] = split_read_ratio 
 
