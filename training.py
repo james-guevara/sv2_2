@@ -47,50 +47,50 @@ def make_snv_weights(coverage, genotype, heterozygous_expected_coverage, homozyg
                    
 MEM = 24000                                                                                                                                                                                                                                                                     
 
-# Deletion > 1000 bp classifier     
-df_highcov_del_gt1kb = open_train("data/training_set_files/1kgp_highcov_del_gt1kb.txt")[["covr", "dpe_rat", "sr_rat", "copy_number"]]    
-sample_weights = df_highcov_del_gt1kb.apply(lambda sample: make_biallelic_weights(sample["covr"], sample["copy_number"], 0.5, 0.0), axis = 1)
-clf_del_gt1kb = SVC(kernel = "rbf" , probability = True, random_state = 42, C = 0.01, gamma = 10, class_weight = "balanced", cache_size = MEM)
-clf_del_gt1kb.fit(df_highcov_del_gt1kb.values[:, 0:-1], df_highcov_del_gt1kb.values[:, -1], sample_weight = sample_weights)                                                          
-joblib.dump(clf_del_gt1kb, "new_classifiers/clf_del_gt1kb.pkl") 
-"""
+## Deletion > 1000 bp classifier     
+#df_highcov_del_gt1kb = open_train("data/training_set_files/1kgp_highcov_del_gt1kb.txt")[["covr", "dpe_rat", "sr_rat", "copy_number"]]    
+#sample_weights = df_highcov_del_gt1kb.apply(lambda sample: make_biallelic_weights(sample["covr"], sample["copy_number"], 0.5, 0.0), axis = 1)
+#clf_del_gt1kb = SVC(kernel = "rbf" , probability = True, random_state = 42, C = 0.01, gamma = 10, class_weight = "balanced", cache_size = MEM)
+#clf_del_gt1kb.fit(df_highcov_del_gt1kb.values[:, 0:-1], df_highcov_del_gt1kb.values[:, -1], sample_weight = sample_weights)                                                          
+#joblib.dump(clf_del_gt1kb, "new_classifiers/clf_del_gt1kb.pkl") 
+
 # Deletion <= 1000 Classifier             
-df_highcov_del_lt1kb = open_train("data/training_set_files/1kgp_highcov_del_lt1kb.txt")[["covr", "dpe_rat", "sr_rat", "copy_number"]]
-sample_weights = df_highcov_del_lt1kb.apply(lambda sample: make_biallelic_weights(sample["covr"], sample["copy_number"], 0.5, 0.0), axis = 1)
-clf_del_lt1kb = SVC(kernel = "rbf" ,probability = True, random_state = 42, C = 1000, gamma = 1, class_weight = "balanced", cache_size = MEM)
-clf_del_lt1kb.fit(df_highcov_del_lt1kb.values[:, 0:-1], df_highcov_del_lt1kb.values[:, -1], sample_weight = sample_weights)
-joblib.dump(clf_del_lt1kb, "clf_del_lt1kb.pkl")   
+#df_highcov_del_lt1kb = open_train("data/training_set_files/1kgp_highcov_del_lt1kb.txt")[["covr", "dpe_rat", "sr_rat", "copy_number"]]
+#sample_weights = df_highcov_del_lt1kb.apply(lambda sample: make_biallelic_weights(sample["covr"], sample["copy_number"], 0.5, 0.0), axis = 1)
+#clf_del_lt1kb = SVC(kernel = "rbf" ,probability = True, random_state = 42, C = 1000, gamma = 1, class_weight = "balanced", cache_size = MEM)
+#clf_del_lt1kb.fit(df_highcov_del_lt1kb.values[:, 0:-1], df_highcov_del_lt1kb.values[:, -1], sample_weight = sample_weights)
+#joblib.dump(clf_del_lt1kb, "new_classifiers/clf_del_lt1kb.pkl")   
 
 # Deletion male sex chromosome classifier
-df_del_malesexchrom = open_train("data/training_set_files/1kgp_highcov_del_malesexchrom.txt")[["covr", "dpe_rat", "sr_rat", "copy_number"]]            
-sample_weights = df_del_malesexchrom.apply(lambda sample: make_allele_weights(sample["covr"], sample["copy_number"], 0.0), axis = 1)
-clf_del_malesexchrom = SVC(kernel = "rbf", probability = True, random_state = 42, C = 1, gamma = 1, class_weight = "balanced", cache_size = MEM)           
-clf_del_malesexchrom.fit(df_del_malesexchrom.values[:, 0:-1], df_del_malesexchrom.values[:, -1], sample_weight = sample_weights)
-joblib.dump(clf_del_malesexchrom, "clf_del_malesexchrom.pkl")
+#df_del_malesexchrom = open_train("data/training_set_files/1kgp_highcov_del_malesexchrom.txt")[["covr", "dpe_rat", "sr_rat", "copy_number"]]            
+#sample_weights = df_del_malesexchrom.apply(lambda sample: make_allele_weights(sample["covr"], sample["copy_number"], 0.0), axis = 1)
+#clf_del_malesexchrom = SVC(kernel = "rbf", probability = True, random_state = 42, C = 1, gamma = 1, class_weight = "balanced", cache_size = MEM)           
+#clf_del_malesexchrom.fit(df_del_malesexchrom.values[:, 0:-1], df_del_malesexchrom.values[:, -1], sample_weight = sample_weights)
+#joblib.dump(clf_del_malesexchrom, "new_classifiers/clf_del_malesexchrom.pkl")
 
 # Duplication breakpoint classifier
-# df_dup_breakpoint["copy_number"].unique() -> array([2, 3, 4])
-df_dup_breakpoint = open_train("data/training_set_files/1kgp_lowcov_dup_breakpoint.txt")[["covr", "dpe_rat", "sr_rat", "copy_number"]]
-# Danny defines a function called "dup_convert" (for duplications) where he converts "copy_number" 3 to 1, and 4 to 0 (and default is 2)
-df_dup_breakpoint["copy_number"] = df_dup_breakpoint["copy_number"].mask(df_dup_breakpoint["copy_number"] == 3, 1)
-df_dup_breakpoint["copy_number"] = df_dup_breakpoint["copy_number"].mask(df_dup_breakpoint["copy_number"] == 4, 0)
-class_weights = {0: 2, 1: 0.5, 2: 1}    
-sample_weights = df_dup_breakpoint.apply(lambda sample: make_biallelic_weights(sample["covr"], sample["copy_number"], 1.5, 2.0), axis = 1)
-clf_dup_breakpoint = SVC(kernel = "rbf", probability = True, random_state = 42, C = 1, gamma = 10, class_weight = class_weights, cache_size = MEM)
-clf_dup_breakpoint.fit(df_dup_breakpoint.values[:, 0:-1], df_dup_breakpoint.values[:, -1], sample_weight = sample_weights)                                            
-joblib.dump(clf_dup_breakpoint, "clf_dup_breakpoint.pkl") 
+## df_dup_breakpoint["copy_number"].unique() -> array([2, 3, 4])
+#df_dup_breakpoint = open_train("data/training_set_files/1kgp_lowcov_dup_breakpoint.txt")[["covr", "dpe_rat", "sr_rat", "copy_number"]]
+## Danny defines a function called "dup_convert" (for duplications) where he converts "copy_number" 3 to 1, and 4 to 0 (and default is 2)
+#df_dup_breakpoint["copy_number"] = df_dup_breakpoint["copy_number"].mask(df_dup_breakpoint["copy_number"] == 3, 1)
+#df_dup_breakpoint["copy_number"] = df_dup_breakpoint["copy_number"].mask(df_dup_breakpoint["copy_number"] == 4, 0)
+#class_weights = {0: 2, 1: 0.5, 2: 1}    
+#sample_weights = df_dup_breakpoint.apply(lambda sample: make_biallelic_weights(sample["covr"], sample["copy_number"], 1.5, 2.0), axis = 1)
+#clf_dup_breakpoint = SVC(kernel = "rbf", probability = True, random_state = 42, C = 1, gamma = 10, class_weight = class_weights, cache_size = MEM)
+#clf_dup_breakpoint.fit(df_dup_breakpoint.values[:, 0:-1], df_dup_breakpoint.values[:, -1], sample_weight = sample_weights)                                            
+#joblib.dump(clf_dup_breakpoint, "new_classifiers/clf_dup_breakpoint.pkl") 
 
 # Duplication HAR classifier
-df_dup_har = open_train("data/training_set_files/1kgp_highcov_dup_har.txt")[["covr", "HET_ratio", "copy_number"]]
-df_dup_har["copy_number"] = df_dup_har["copy_number"].mask(df_dup_har["copy_number"] == 3, 1)
-df_dup_har["copy_number"] = df_dup_har["copy_number"].mask(df_dup_har["copy_number"] == 4, 0)
-median_heterozygous_ratio_copy_number_2 = np.median(df_dup_har[df_dup_har["copy_number"] == 2]["HET_ratio"])
-median_heterozygous_ratio_copy_number_3 = np.median(df_dup_har[df_dup_har["copy_number"] == 1]["HET_ratio"])
-median_heterozygous_ratio_copy_number_4 = median_heterozygous_ratio_copy_number_2/2.0
-sample_weights = df_dup_har.apply(lambda sample: make_snv_weights(sample["covr"], sample["copy_number"], 1.5, 2.0, sample["HET_ratio"], median_heterozygous_ratio_copy_number_2, median_heterozygous_ratio_copy_number_3, median_heterozygous_ratio_copy_number_4), axis = 1)
-clf_dup_har = SVC(kernel = "rbf", probability = True, random_state = 42, C = 0.01, gamma = 5000, class_weight = "balanced", cache_size
-clf_dup_har.fit(df_dup_har.values[:, 0:-1], df_dup_har.values[:, -1])
-joblib.dump(clf_dup_har, "clf_dup_har.pkl")
+#df_dup_har = open_train("data/training_set_files/1kgp_highcov_dup_har.txt")[["covr", "HET_ratio", "copy_number"]]
+#df_dup_har["copy_number"] = df_dup_har["copy_number"].mask(df_dup_har["copy_number"] == 3, 1)
+#df_dup_har["copy_number"] = df_dup_har["copy_number"].mask(df_dup_har["copy_number"] == 4, 0)
+#median_heterozygous_ratio_copy_number_2 = np.median(df_dup_har[df_dup_har["copy_number"] == 2]["HET_ratio"])
+#median_heterozygous_ratio_copy_number_3 = np.median(df_dup_har[df_dup_har["copy_number"] == 1]["HET_ratio"])
+#median_heterozygous_ratio_copy_number_4 = median_heterozygous_ratio_copy_number_2/2.0
+#sample_weights = df_dup_har.apply(lambda sample: make_snv_weights(sample["covr"], sample["copy_number"], 1.5, 2.0, sample["HET_ratio"], median_heterozygous_ratio_copy_number_2, median_heterozygous_ratio_copy_number_3, median_heterozygous_ratio_copy_number_4), axis = 1)
+#clf_dup_har = SVC(kernel = "rbf", probability = True, random_state = 42, C = 0.01, gamma = 5000, class_weight = "balanced", cache_size = MEM)
+#clf_dup_har.fit(df_dup_har.values[:, 0:-1], df_dup_har.values[:, -1])
+#joblib.dump(clf_dup_har, "new_classifiers/clf_dup_har.pkl")
 
 # Duplication male sex chromosome classifier
 # df_dup_malesexchrom["copy_number"].unique() -> array([1, 3])
@@ -102,4 +102,4 @@ sample_weights = df_dup_malesexchrom.apply(lambda sample: make_allele_weights(sa
 clf_dup_malesexchrom = SVC(kernel = "rbf", probability = True, random_state = 42, C = 1000, gamma = 0.01, class_weight = class_weights, cache_size = MEM)                                
 clf_dup_malesexchrom.fit(df_dup_malesexchrom.values[:, 0:-1], df_dup_malesexchrom.values[:, -1], sample_weight = sample_weights)
 joblib.dump(clf_dup_malesexchrom, "clf_dup_malesexchrom.pkl")
-"""
+

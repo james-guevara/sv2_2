@@ -170,6 +170,8 @@ def make_sv_interval_table(sv_bed, exclude_bed, reference_fasta):
     sv_slop_left_flank_exclude_bed = sv_slop_left_flank_bed.subtract(exclude_bed)
     sv_slop_right_flank_exclude_bed = sv_slop_right_flank_bed.subtract(exclude_bed)
 
+    # print("SV_SUBTRACT_EXCLUDE_BED: {}".format(sv_subtract_exclude_and_nucleotide_content_bed))
+
     svtypes = ("DEL", "DUP")
     sv_interval_table = {}
     for index, sv in enumerate(sv_subtract_exclude_and_nucleotide_content_bed):
@@ -181,11 +183,14 @@ def make_sv_interval_table(sv_bed, exclude_bed, reference_fasta):
         sv_interval_table[(chrom, start, end, svtype)]["nucleotide_content"].append((float(sv[4]), float(sv[5]), int(sv[6]), int(sv[7]), int(sv[8]), int(sv[9]), int(sv[10]), int(sv[11]), int(sv[12])))
 
     # Get flank spans too
-    sv_interval_table = make_sv_interval_table_items(sv_slop_left_flank_exclude_bed,  "FLANK_SPAN", sv_interval_table)
-    sv_interval_table = make_sv_interval_table_items(sv_slop_right_flank_exclude_bed, "FLANK_SPAN", sv_interval_table)
-    # Get windows too
-    sv_interval_table = make_sv_interval_table_items(sv_slop_left_flank_bed,  "WINDOWS", sv_interval_table)
-    sv_interval_table = make_sv_interval_table_items(sv_slop_right_flank_bed, "WINDOWS", sv_interval_table)
+    # print("Left_flank: {}".format(sv_slop_left_flank_exclude_bed))
+    # print("Right_flank: {}".format(sv_slop_right_flank_exclude_bed))
+    if sv_slop_left_flank_exclude_bed and sv_slop_right_flank_exclude_bed:
+        sv_interval_table = make_sv_interval_table_items(sv_slop_left_flank_exclude_bed,  "FLANK_SPAN", sv_interval_table)
+        sv_interval_table = make_sv_interval_table_items(sv_slop_right_flank_exclude_bed, "FLANK_SPAN", sv_interval_table)
+        # Get windows too (put in if statement?)
+        sv_interval_table = make_sv_interval_table_items(sv_slop_left_flank_bed,  "WINDOWS", sv_interval_table)
+        sv_interval_table = make_sv_interval_table_items(sv_slop_right_flank_bed, "WINDOWS", sv_interval_table)
     return sv_interval_table
 
 def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes, df_preprocessing_table, threads = 1):
@@ -269,10 +274,35 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
         if read.mapping_quality >= 40 and read.query_length > median_read_length - 10: return True
         return False
 
+    def is_discordant(alignment, windows, ci_insert_size_insert_mad, mate_position):
+        ((c1, s1, e1), (c2, s2, e2)) = windows # (c1, s1, e1) is (window_chrom1, window_start1, window_end1), where chrom1 is just the chrom in the first window
+        if abs(alignment.template_length) < ci_insert_size_insert_mad: return False
+        if (s1 <= alignment.reference_start <= e1) and (s2 <= mate_position <= e2): return True
+        if (s2 <= alignment.reference_start <= e2) and (s1 <= mate_position <= e1): return True
+        return False
+
+    def is_split(alignment, windows, contig):
+        ((c1, s1, e1), (c2, s2, e2)) = windows
+        if not alignment.is_supplementary: return False
+        second_alignment = alignment.get_tag("SA").split(",")
+        if len(second_alignment) == 0: return False
+        if second_alignment[0] != contig: return False
+        if (s1 <= alignment.reference_start <= e1) and (s2 <= int(second_alignment[1]) - 1 <= e2): return True
+        if (s2 <= alignment.reference_start <= e2) and (s1 <= int(second_alignment[1]) - 1 <= e1): return True
+        return False
+
+    def is_concordant(alignment):
+        if not alignment.is_proper_pair: return False
+        if alignment.mapping_quality < 10: return False
+        if alignment.is_supplementary: return False
+        if abs(alignment.template_length) >= ci_insert_size_insert_mad: return False
+        return True
+
     mode = "rc"
     if alignment_filepath.endswith(".bam"): mode = "rb"
     alignment_iterator = pysam.AlignmentFile(alignment_filepath, mode = mode, reference_filename = reference_filepath, threads = threads)
     for index, sv in enumerate(sv_bed):
+        # print("Call: {}".format(sv))
         chrom, start, end, svtype = sv[0], int(sv[1]), int(sv[2]), sv[3]
         if (chrom, start, end, svtype) not in sv_interval_table: continue 
         if svtype not in svtypes: continue
@@ -333,45 +363,50 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
 
         split_read_ratio: float = 0.0
         discordant_read_ratio: float = 0.0
+        # print("Flank_span: {}".format(flank_span))
         for flank in flank_span:
             for alignment in alignment_iterator.fetch(contig = flank[0], start = flank[1], end = flank[2]):
                 if alignment.is_qcfail: continue
-                if alignment.is_duplicate: continue
-                if alignment.mapping_quality < 10: continue
                 if alignment.is_unmapped: continue
+                if alignment.mate_is_unmapped: continue
+                if alignment.reference_id != alignment.next_reference_id: continue # Added this one on 2022-08-26
                 if alignment.is_reverse == alignment.mate_is_reverse: continue
+                if alignment.is_duplicate: continue
+                # if alignment.mapping_quality < 10: continue # Commenting this out messes up the counts for split-reads...
                 mate_position = alignment.next_reference_start
-                
-                if abs(alignment.template_length) >= ci_insert_size_insert_mad:
-                    """ insert size is greater than 5 MAD (median absolute deviations)  from median """
-                    # Get discordant reads
-                    if (windows[0][1] <= alignment.reference_start <= windows[0][2] and windows[1][1] <= mate_position <= windows[1][2]) or (windows[1][1] <= alignment.reference_start <= windows[1][2] and windows[0][1] <= mate_position <= windows[0][2]):
-                        discordant_read_count += 1
-                # DEBUGGING
-                # TEST ON original 1000 Genomes file and make sure that split-read ratio values are consistent
-                # Get split reads (but they're all 0 if we do it this way)
-                if alignment.is_supplementary:
-                    second_alignment = alignment.get_tag("SA").split(",")
-                    if len(second_alignment) != 0:
-                        if second_alignment[0] == chrom: # The value c that Danny uses for some reason (and leads to a split_read count of 0...) # c SHOULD BE chromosome instead (the second alignment should be on the same chromosome as the first one)
-                            if (windows[0][1] <= alignment.reference_start <= windows[0][2] and windows[1][1] <= int(second_alignment[1]) - 1 <= windows[1][2]) or (windows[1][1] <= alignment.reference_start <= windows[1][2] and windows[0][1] <= int(second_alignment[1]) - 1 <= windows[0][2]):
-                                split_read_count += 1
-                
-                if (not alignment.is_supplementary) and alignment.is_proper_pair and abs(alignment.template_length) < ci_insert_size_insert_mad:
-                    concordant_read_count += 1
-                
-                if concordant_read_count == 0:
-                    discordant_read_ratio = discordant_read_count/1.0
-                    split_read_ratio = split_read_count/1.0
-                else:
-                    discordant_read_ratio = discordant_read_count/float(concordant_read_count)
-                    split_read_ratio = split_read_count/float(concordant_read_count)
+               
 
-                # if alignment.is_supplementary: split_read_count += 1
-                # if alignment.is_proper_pair: concordant_read_count += 1 
-                # else: discordant_read_count += 1
+                if is_discordant(alignment, windows, ci_insert_size_insert_mad, mate_position): discordant_read_count += 1
+                if is_split(alignment, windows, flank[0]): split_read_count += 1
+                if is_concordant(alignment): concordant_read_count += 1
 
+                # if abs(alignment.template_length) >= ci_insert_size_insert_mad:
+                #     """ insert size is greater than 5 MAD (median absolute deviations)  from median """
+                #     # Get discordant reads
+                #     if (windows[0][1] <= alignment.reference_start <= windows[0][2] and windows[1][1] <= mate_position <= windows[1][2]) or (windows[1][1] <= alignment.reference_start <= windows[1][2] and windows[0][1] <= mate_position <= windows[0][2]):
+                #         discordant_read_count += 1
+                # # DEBUGGING
+                # # TEST ON original 1000 Genomes file and make sure that split-read ratio values are consistent
+                # # Get split reads (but they're all 0 if we do it this way)
+                # if alignment.is_supplementary:
+                #     second_alignment = alignment.get_tag("SA").split(",")
+                #     if len(second_alignment) != 0:
+                #         if second_alignment[0] == chrom: # The value c that Danny uses for some reason (and leads to a split_read count of 0...) # c SHOULD BE chromosome instead (the second alignment should be on the same chromosome as the first one)
+                #             if (windows[0][1] <= alignment.reference_start <= windows[0][2] and windows[1][1] <= int(second_alignment[1]) - 1 <= windows[1][2]) or (windows[1][1] <= alignment.reference_start <= windows[1][2] and windows[0][1] <= int(second_alignment[1]) - 1 <= windows[0][2]):
+                #                 split_read_count += 1
+                # 
+                # if alignment.mapping_quality >= 10 and (not alignment.is_supplementary) and alignment.is_proper_pair and abs(alignment.template_length) < ci_insert_size_insert_mad:
+                #     concordant_read_count += 1
+        if concordant_read_count == 0:
+            discordant_read_ratio = discordant_read_count/1.0
+            split_read_ratio = split_read_count/1.0
+        else:
+            discordant_read_ratio = discordant_read_count/float(concordant_read_count)
+            split_read_ratio = split_read_count/float(concordant_read_count)
 
+        # print("Discordant_count: {}".format(discordant_read_count))
+        # print("Split_count: {}".format(split_read_count))
+        # print("Concordant_count: {}".format(concordant_read_count))
         alignment_features_table[(chrom, start, end)] = {}
         alignment_features_table[(chrom, start, end)]["type"] = svtype
         alignment_features_table[(chrom, start, end)]["size"] = svlen
