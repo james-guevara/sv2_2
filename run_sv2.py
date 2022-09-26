@@ -42,14 +42,15 @@ parser.add_argument("--exclude_regions_bed", help = "BED file with regions to ex
 parser.add_argument("--sv_bed_file", help = "SV BED file input", required = True)
 parser.add_argument("--preprocessing_table_input", help = "A pre-generated preprocessing table (if SV2 had been run before and you want to skip the preprocessing part of the program")
 parser.add_argument("--gc_reference_table", help = "GC content reference table input")
+parser.add_argument("--ped_file", help = "Pedigree file", required = True)
 # From classify.py step
-parser.add_argument("--sex", help = "Sex of sample: male or female", required = True)
 parser.add_argument("--clf_folder", help = "Folder that contains the classifiers, which must be in .pkl format (if not specified, will look for them in the default data folder)")
 # From make_vcf.py step
 parser.add_argument("--sample_name", help = "Sample name", required = True)
 parser.add_argument("--output_folder", help = "Output folder for output files (if not used, then output folder is set to 'sv2_output')")
 # Multithreading for pysam
 parser.add_argument("--threads", help = "Threads used  for pysam. Default is 1.", type = int)
+
 args = parser.parse_args()
 
 sv2_command = " ".join(sys.argv)
@@ -80,6 +81,18 @@ output_folder.mkdir(parents = True, exist_ok = True)
 
 """ make_feature_table.py step """
 print("Making feature table at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
+
+# Get sex from pedigree file
+sex = ""
+with open(args.ped_file, "r") as f:
+    for line in f:
+        linesplit = line.rstrip().split("\t")
+        fid, iid, father_iid, mother_iid, sex_code, phenotype = linesplit[0], linesplit[1], linesplit[2], linesplit[3], linesplit[4], linesplit[5]
+        if iid == args.sample_name:
+            if sex_code == "1": sex = "male"
+            elif sex_code == "2": sex = "female"
+            else: print("Invalid sex code in the pedigree file.", file = sys.stderr)
+if sex not in ["male", "female"]: print("Invalid sex code. Is the sample in the pedigree file?", file = sys.stderr)
 
 # Chromosomes to analyze (1,... 22, X, Y)
 chroms = list(map(str, np.arange(1, 22 + 1)))
@@ -156,7 +169,7 @@ print("Making feature table step done at {}".format(strftime("%Y-%m-%d_%H.%M.%S"
 """ classify.py step """
 print("Genotyping SV calls at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
 
-df, df_male_sex_chromosomes = load_features(features_table_filepath, args.sex)
+df, df_male_sex_chromosomes = load_features(features_table_filepath, sex)
 
 # Set default filepaths for the classifiers
 clf_highcov_del_gt1kb_filepath = "data/trained_classifiers/clf_del_gt1kb.pkl"
