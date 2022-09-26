@@ -103,7 +103,7 @@ def make_alignment_preprocessing_table(alignment_filepath, reference_filepath, c
 
 
 # Get the SNV preprocessing data (from the SNV VCF):
-def get_snv_preprocessing_data(snv_vcf_filepath, chroms, regions_table, threads = 1):
+def get_snv_preprocessing_data(snv_vcf_filepath, chroms, regions_table, sample_index, threads = 1):
     snv_preprocessing_table = {} 
     snv_vcf_iterator = pysam.VariantFile(snv_vcf_filepath, mode = "r", threads = threads) 
     for chrom in snv_vcf_iterator.header.contigs:
@@ -124,10 +124,10 @@ def get_snv_preprocessing_data(snv_vcf_filepath, chroms, regions_table, threads 
                 continue
 
             for record in records:
-                if "AD" not in record.samples[0]: continue
-                if "DP" not in record.samples[0]: continue
-                if "GT" not in record.samples[0]: continue
-                chrom_depths.append(record.samples[0]["DP"])
+                if "AD" not in record.samples[sample_index]: continue
+                if "DP" not in record.samples[sample_index]: continue
+                if "GT" not in record.samples[sample_index]: continue
+                chrom_depths.append(record.samples[sample_index]["DP"])
 
         snv_preprocessing_table[chrom] = {"median_chrom_depth": 0., "len_chrom_depth": 0}
         if len(chrom_depths) > 0:
@@ -193,7 +193,7 @@ def make_sv_interval_table(sv_bed, exclude_bed, reference_fasta):
         sv_interval_table = make_sv_interval_table_items(sv_slop_right_flank_bed, "WINDOWS", sv_interval_table)
     return sv_interval_table
 
-def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes, df_preprocessing_table, threads = 1):
+def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes, df_preprocessing_table, sample_index, threads = 1):
     snv_features_table = {}
     snv_vcf_iterator = pysam.VariantFile(snv_vcf_filepath, threads = threads)
     for sv in sv_bed:
@@ -218,15 +218,15 @@ def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes
                 continue
 
             for record in records:
-                if "AD" not in record.samples[0]: continue
-                if "DP" not in record.samples[0]: continue
-                if "GT" not in record.samples[0]: continue
+                if "AD" not in record.samples[sample_index]: continue
+                if "DP" not in record.samples[sample_index]: continue
+                if "GT" not in record.samples[sample_index]: continue
 
-                locus_depths.append(record.samples[0]["DP"])
+                locus_depths.append(record.samples[sample_index]["DP"])
 
-                if record.samples[0]["GT"][0] == record.samples[0]["GT"][1]: continue
-                if record.samples[0]["AD"][0] == 0 or record.samples[0]["AD"][1] == 0: continue
-                AR = float(record.samples[0]["AD"][0])/float(record.samples[0]["AD"][1])
+                if record.samples[sample_index]["GT"][0] == record.samples[sample_index]["GT"][1]: continue
+                if record.samples[sample_index]["AD"][0] == 0 or record.samples[sample_index]["AD"][1] == 0: continue
+                AR = float(record.samples[sample_index]["AD"][0])/float(record.samples[sample_index]["AD"][1])
                 if AR > 1: AR = 1/AR
                 locus_HADs.append(AR)
        
