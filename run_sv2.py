@@ -5,6 +5,7 @@ import os
 import pandas as pd
 from pathlib import Path
 from pybedtools import BedTool
+import pysam
 import sys
 from time import gmtime, strftime
 
@@ -106,13 +107,21 @@ GC_content_reference_table = make_GC_content_reference_table(gc_reference_table)
 # Make the regions table (used to estimate coverage)
 regions_table = make_regions_table(regions_bed)
 
+# Get sample index from SNV VCF
+def make_sample_index_dicts(vcf_filepath):
+    vcf_iterator = pysam.VariantFile(vcf_filepath, mode = "r")
+    index_sample_dict = dict(enumerate(vcf_iterator.header.samples))
+    sample_index_dict = {v: k for k, v in index_sample_dict.items()}
+    return sample_index_dict, index_sample_dict
+
+sample_index_dict, index_sample_dict = make_sample_index_dicts(args.snv_vcf_file)
 
 if not args.preprocessing_table_input:
     # Make the CRAM/BAM preprocessing table
     alignment_preprocessing_table = make_alignment_preprocessing_table(args.alignment_file, args.reference_fasta, chroms, regions_table, threads)
     
     # Make the SNV preprocessing table
-    snv_preprocessing_table = get_snv_preprocessing_data(args.snv_vcf_file, chroms, regions_table, threads)
+    snv_preprocessing_table = get_snv_preprocessing_data(args.snv_vcf_file, chroms, regions_table, sample_index_dict[args.sample_name], threads)
 
     # Merge and output the preprocessing table
     df_alignment_preprocessing_table = pd.DataFrame.from_dict(alignment_preprocessing_table, orient = "index")
@@ -146,7 +155,7 @@ if (len(sv_interval_table) == 0):
     sys.exit()
 
 # Make SNV features table (for each filtered SV call)
-snv_features_table = make_snv_features_table(args.snv_vcf_file, sv_bed, sv_interval_table, svtypes, df_preprocessing_table, threads)
+snv_features_table = make_snv_features_table(args.snv_vcf_file, sv_bed, sv_interval_table, svtypes, df_preprocessing_table, sample_index_dict[args.sample_name], threads)
 
 # Make CRAM/BAM features table (for each filtered SV call)
 alignment_features_table = make_alignment_features_table(args.alignment_file, args.reference_fasta, sv_bed, df_preprocessing_table, sv_interval_table, svtypes, GC_content_reference_table, threads)
