@@ -51,6 +51,8 @@ parser.add_argument("--sample_name", help = "Sample name", required = True)
 parser.add_argument("--output_folder", help = "Output folder for output files (if not used, then output folder is set to 'sv2_output')")
 # Multithreading for pysam
 parser.add_argument("--threads", help = "Threads used  for pysam. Default is 1.", type = int)
+# Legacy -M option (if the user specified -M when running bwa-mem so that bwa-mem writes out secondary alignments, then they can use this option)
+parser.add_argument("-M", action = "store_true", help = "If the user used -M when running bwa-mem, use this flag.")
 
 args = parser.parse_args()
 
@@ -158,7 +160,7 @@ if (len(sv_interval_table) == 0):
 snv_features_table = make_snv_features_table(args.snv_vcf_file, sv_bed, sv_interval_table, svtypes, df_preprocessing_table, sample_index_dict[args.sample_name], threads)
 
 # Make CRAM/BAM features table (for each filtered SV call)
-alignment_features_table = make_alignment_features_table(args.alignment_file, args.reference_fasta, sv_bed, df_preprocessing_table, sv_interval_table, svtypes, GC_content_reference_table, threads)
+alignment_features_table = make_alignment_features_table(args.alignment_file, args.reference_fasta, sv_bed, df_preprocessing_table, sv_interval_table, svtypes, GC_content_reference_table, args.M, threads)
 
 # Merge and output feature table
 df_alignment_features_table = pd.DataFrame.from_dict(alignment_features_table, orient = "index")
