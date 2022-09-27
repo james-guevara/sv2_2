@@ -241,7 +241,7 @@ def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes
 
     return snv_features_table
 
-def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed, df_preprocessing_table, sv_interval_table, svtypes, GC_content_reference_table, threads = 1):
+def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed, df_preprocessing_table, sv_interval_table, svtypes, GC_content_reference_table, M_flag, threads = 1):
     def calculate_gc_content_fraction(sv_interval_table_nucleotide_content_list):
         # https://daler.github.io/pybedtools/autodocs/pybedtools.bedtool.BedTool.nucleotide_content.html
         # The elements in each sublist are as follows: 
@@ -281,9 +281,11 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
         if (s2 <= alignment.reference_start <= e2) and (s1 <= mate_position <= e1): return True
         return False
 
-    def is_split(alignment, windows, contig):
+    def is_split(alignment, windows, contig, M_flag):
         ((c1, s1, e1), (c2, s2, e2)) = windows
-        if not alignment.is_supplementary: return False
+        if M_flag:
+            if not alignment.is_secondary: return False
+        elif not alignment.is_supplementary: return False
         second_alignment = alignment.get_tag("SA").split(",")
         if len(second_alignment) == 0: return False
         if second_alignment[0] != contig: return False
@@ -294,7 +296,9 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
     def is_concordant(alignment):
         if not alignment.is_proper_pair: return False
         if alignment.mapping_quality < 10: return False
-        if alignment.is_supplementary: return False
+        if M_flag:
+            if alignment.is_secondary: return False
+        elif alignment.is_supplementary: return False
         if abs(alignment.template_length) >= ci_insert_size_insert_mad: return False
         return True
 
