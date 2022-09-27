@@ -293,7 +293,7 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
         if (s2 <= alignment.reference_start <= e2) and (s1 <= int(second_alignment[1]) - 1 <= e1): return True
         return False
 
-    def is_concordant(alignment):
+    def is_concordant(alignment, M_flag):
         if not alignment.is_proper_pair: return False
         if alignment.mapping_quality < 10: return False
         if M_flag:
