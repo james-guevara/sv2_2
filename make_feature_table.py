@@ -381,8 +381,8 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
                
 
                 if is_discordant(alignment, windows, ci_insert_size_insert_mad, mate_position): discordant_read_count += 1
-                if is_split(alignment, windows, flank[0]): split_read_count += 1
-                if is_concordant(alignment): concordant_read_count += 1
+                if is_split(alignment, windows, flank[0], M_flag): split_read_count += 1
+                if is_concordant(alignment, M_flag): concordant_read_count += 1
 
                 # if abs(alignment.template_length) >= ci_insert_size_insert_mad:
                 #     """ insert size is greater than 5 MAD (median absolute deviations)  from median """
