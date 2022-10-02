@@ -130,9 +130,9 @@ def get_snv_preprocessing_data(snv_vcf_filepath, chroms, regions_table, sample_i
                 chrom_depths.append(record.samples[sample_index]["DP"])
 
         snv_preprocessing_table[chrom] = {"median_chrom_depth": 0., "len_chrom_depth": 0}
+        chrom_depths = np.array(chrom_depths)
+        chrom_depths = chrom_depths[chrom_depths != np.array(None)]
         if len(chrom_depths) > 0:
-            chrom_depths = np.array(chrom_depths)
-            chrom_depths = chrom_depths[chrom_depths != np.array(None)]
             snv_preprocessing_table[chrom]["median_chrom_depth"] = np.nanmedian(chrom_depths) 
             snv_preprocessing_table[chrom]["len_chrom_depth"] = len(chrom_depths) 
     return snv_preprocessing_table
@@ -235,9 +235,9 @@ def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes
         snv_features_table[(chrom, start, end)] = {}
         snv_features_table[(chrom, start, end)]["snv_coverage"] = 0. # Change to float("nan") maybe (originally this was np.nan)
         snv_features_table[(chrom, start, end)]["heterozygous_allele_ratio"] = np.nan # Change to float("nan") maybe (originally this was np.nan)
+        locus_depths = np.array(locus_depths)
+        locus_depths = locus_depths[locus_depths != np.array(None)]
         if len(locus_depths) > 0:
-            locus_depths = np.array(locus_depths)
-            locus_depths = locus_depths[locus_depths != np.array(None)]
             if chrom in df_preprocessing_table["chrom"].values: snv_features_table[(chrom, start, end)]["snv_coverage"] = float(np.nanmedian(locus_depths))/df_preprocessing_table[df_preprocessing_table["chrom"] == chrom]["median_chrom_depth"].values[0]
             snv_features_table[(chrom, start, end)]["heterozygous_allele_ratio"] = np.nanmedian(locus_HADs)
         snv_features_table[(chrom, start, end)]["snvs"] = len(locus_depths)
