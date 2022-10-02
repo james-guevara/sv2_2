@@ -228,6 +228,7 @@ def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes
 
                 if record.samples[sample_index]["GT"][0] == record.samples[sample_index]["GT"][1]: continue
                 if record.samples[sample_index]["AD"][0] == 0 or record.samples[sample_index]["AD"][1] == 0: continue
+                if record.samples[sample_index]["AD"][0] is None or record.samples[sample_index]["AD"][1] is None: continue
                 AR = float(record.samples[sample_index]["AD"][0])/float(record.samples[sample_index]["AD"][1])
                 if AR > 1: AR = 1/AR
                 locus_HADs.append(AR)
