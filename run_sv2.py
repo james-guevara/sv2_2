@@ -40,7 +40,12 @@ parser.add_argument("--reference_fasta", help = "Reference fasta file input", re
 parser.add_argument("--snv_vcf_file", help = "SNV VCF file input", required = True)
 parser.add_argument("--regions_bed", help = "BED file with pre-generated random genomic regions (for estimating coverage per chromosome)")
 parser.add_argument("--exclude_regions_bed", help = "BED file with regions to exclude")
-parser.add_argument("--sv_bed_file", help = "SV BED file input", required = True)
+
+# The user can either specify an SV BED file or VCF file (the VCF file would be converted to an SV bed file internally).
+parser_sv_group = parser.add_mutually_exclusive_group(required = True)
+parser_sv_group.add_argument("--sv_bed_file", help = "SV BED file input")
+parser_sv_group.add_argument("--sv_vcf_file", help = "SV VCF file input")
+
 parser.add_argument("--preprocessing_table_input", help = "A pre-generated preprocessing table (if SV2 had been run before and you want to skip the preprocessing part of the program")
 parser.add_argument("--gc_reference_table", help = "GC content reference table input")
 parser.add_argument("--ped_file", help = "Pedigree file", required = True)
@@ -53,6 +58,8 @@ parser.add_argument("--output_folder", help = "Output folder for output files (i
 parser.add_argument("--threads", help = "Threads used  for pysam. Default is 1.", type = int)
 # Legacy -M option (if the user specified -M when running bwa-mem so that bwa-mem writes out secondary alignments, then they can use this option)
 parser.add_argument("-M", action = "store_true", help = "If the user used -M when running bwa-mem, use this flag.")
+# PCR-free option (if PCR-free sequencing method was used)
+parser.add_argument("-pcrfree", action = "store_true", help = "Adjust coverage based on PCR-free sequencing (rather than PCR).")
 
 args = parser.parse_args()
 
@@ -138,14 +145,23 @@ if not args.preprocessing_table_input:
 else:
     df_preprocessing_table = pd.read_csv(args.preprocessing_table_input, sep = "\t")
 
-# Preprocess the input SV BED file
+# Preprocessing SVs 
 sv_bed_list = []
-with open(args.sv_bed_file, "r") as f:
-    for line in f:
-        linesplit = line.rstrip().split("\t")
-        chrom, start, stop, features = linesplit[0], int(linesplit[1]), int(linesplit[2]), linesplit[3]
+if args.sv_bed_file:
+    # Preprocess the input SV BED file
+    with open(args.sv_bed_file, "r") as f:
+        for line in f:
+            linesplit = line.rstrip().split("\t")
+            chrom, start, stop, features = linesplit[0], int(linesplit[1]), int(linesplit[2]), linesplit[3]
+            if start > stop: continue
+            sv_bed_list.append(line.rstrip())
+elif args.sv_vcf_file:
+    # Preprocess the input SV VCF file (probably from SURVIVOR merge)
+    vcf_iterator = pysam.VariantFile(args.sv_vcf_file, mode = "r")
+    for record in vcf_iterator:
+        chrom, start, stop, svtype = record.chrom, record.start, record.stop, record.info["SVTYPE"]
         if start > stop: continue
-        sv_bed_list.append(line.rstrip())
+        sv_bed_list.append("\t".join([chrom, start, stop, svtype]))
 sv_bed = BedTool(sv_bed_list).filter(lambda x: len(x) > 0).saveas()
 # Create a dummy BedTool for when it's not specified as an argument (i.e. the user doesn't want to use it). I have to do it this way because it doesn't work when I just create an empty BedTool...
 exclude_bed = BedTool("chrZ 0 1", from_string = True)
@@ -160,7 +176,7 @@ if (len(sv_interval_table) == 0):
 snv_features_table = make_snv_features_table(args.snv_vcf_file, sv_bed, sv_interval_table, svtypes, df_preprocessing_table, sample_index_dict[args.sample_name], threads)
 
 # Make CRAM/BAM features table (for each filtered SV call)
-alignment_features_table = make_alignment_features_table(args.alignment_file, args.reference_fasta, sv_bed, df_preprocessing_table, sv_interval_table, svtypes, GC_content_reference_table, args.M, threads)
+alignment_features_table = make_alignment_features_table(args.alignment_file, args.reference_fasta, sv_bed, df_preprocessing_table, sv_interval_table, svtypes, GC_content_reference_table, args.M, args.pcrfree, threads)
 
 # Merge and output feature table
 df_alignment_features_table = pd.DataFrame.from_dict(alignment_features_table, orient = "index")
