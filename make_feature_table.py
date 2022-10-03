@@ -418,6 +418,7 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
         # print("Discordant_count: {}".format(discordant_read_count))
         # print("Split_count: {}".format(split_read_count))
         # print("Concordant_count: {}".format(concordant_read_count))
+        # If I want SVs of different types with same start and end, then I should use type
         alignment_features_table[(chrom, start, end)] = {}
         alignment_features_table[(chrom, start, end)]["type"] = svtype
         alignment_features_table[(chrom, start, end)]["size"] = svlen

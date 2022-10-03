@@ -164,16 +164,19 @@ if args.preprocess_only:
 # Preprocessing SVs 
 sv_bed_list = []
 sv_bed_list_unfiltered = []
+sv_bed_set = set()
 if args.sv_bed_file:
     # Preprocess the input SV BED file
     with open(args.sv_bed_file, "r") as f:
         for line in f:
             linesplit = line.rstrip().split("\t")
-            chrom, start, stop, features = linesplit[0], int(linesplit[1]), int(linesplit[2]), linesplit[3]
+            chrom, start, stop, features = linesplit[0], int(linesplit[1]), int(linesplit[2]), linesplit[3] # features should be svtype
             if start > stop: 
                 sv_bed_list_unfiltered.append(line.rstrip())
                 continue
             sv_bed_list_unfiltered.append(line.rstrip())
+            if (chrom, start, stop) in sv_bed_set: continue
+            sv_bed_set.add((chrom, start, stop)) # Don't include duplicates (even of different svtypes)
             sv_bed_list.append(line.rstrip())
 elif args.sv_vcf_file:
     # Preprocess the input SV VCF file (probably from SURVIVOR merge)
@@ -184,6 +187,8 @@ elif args.sv_vcf_file:
             sv_bed_list_unfiltered.append("\t".join([chrom, str(start), str(stop), svtype]))
             continue
         sv_bed_list_unfiltered.append("\t".join([chrom, str(start), str(stop), svtype]))
+        if (chrom, start, stop) in sv_bed_set: continue # Don't include duplicates (even of different svtypes)
+        sv_bed_set.add((chrom, start, stop))
         sv_bed_list.append("\t".join([chrom, str(start), str(stop), svtype]))
 
 sv_bed = BedTool(sv_bed_list).filter(lambda x: len(x) > 0).saveas()
