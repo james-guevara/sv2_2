@@ -60,6 +60,11 @@ parser.add_argument("--threads", help = "Threads used  for pysam. Default is 1."
 parser.add_argument("-M", action = "store_true", help = "If the user used -M when running bwa-mem, use this flag.")
 # PCR-free option (if PCR-free sequencing method was used)
 parser.add_argument("-pcrfree", action = "store_true", help = "Adjust coverage based on PCR-free sequencing (rather than PCR).")
+# Stop after preprocessing
+parser.add_argument("-preprocess_only", action = "store_true", help = "Stop after preprocessing.")
+parser.add_argument("-features_only", action = "store_true", help = "Stop after feature extraction.")
+# Analyze non-standard contigs in regions file
+parser.add_argument("-contigs", action = "store_true", help = "Look at all contigs in regions file.")
 
 args = parser.parse_args()
 
@@ -107,6 +112,13 @@ if sex not in ["male", "female"]: print("Invalid sex code. Is the sample in the 
 # Chromosomes to analyze (1,... 22, X, Y)
 chroms = list(map(str, np.arange(1, 22 + 1)))
 chroms.extend(["X", "Y"])
+# Analyze chroms from regions table instead
+if args.contigs:
+    chroms = []
+    with open(regions_bed, "r") as f:
+        for line in f:
+            chrom = line.rstrip().split("\t")[0].removeprefix("chr")
+            if chrom not in chroms: chroms.append(chrom)
 
 # SV types to classify
 svtypes = ("DEL", "DUP")
@@ -145,23 +157,35 @@ if not args.preprocessing_table_input:
 else:
     df_preprocessing_table = pd.read_csv(args.preprocessing_table_input, sep = "\t")
 
+if args.preprocess_only:
+    print("Stopping after preprocessing.")
+    sys.exit(0)
+
 # Preprocessing SVs 
 sv_bed_list = []
+sv_bed_list_unfiltered = []
 if args.sv_bed_file:
     # Preprocess the input SV BED file
     with open(args.sv_bed_file, "r") as f:
         for line in f:
             linesplit = line.rstrip().split("\t")
             chrom, start, stop, features = linesplit[0], int(linesplit[1]), int(linesplit[2]), linesplit[3]
-            if start > stop: continue
+            if start > stop: 
+                sv_bed_list_unfiltered.append(line.rstrip())
+                continue
+            sv_bed_list_unfiltered.append(line.rstrip())
             sv_bed_list.append(line.rstrip())
 elif args.sv_vcf_file:
     # Preprocess the input SV VCF file (probably from SURVIVOR merge)
     vcf_iterator = pysam.VariantFile(args.sv_vcf_file, mode = "r")
     for record in vcf_iterator:
         chrom, start, stop, svtype = record.chrom, record.start, record.stop, record.info["SVTYPE"]
-        if start > stop: continue
-        sv_bed_list.append("\t".join([chrom, start, stop, svtype]))
+        if start > stop: 
+            sv_bed_list_unfiltered.append("\t".join([chrom, str(start), str(stop), svtype]))
+            continue
+        sv_bed_list_unfiltered.append("\t".join([chrom, str(start), str(stop), svtype]))
+        sv_bed_list.append("\t".join([chrom, str(start), str(stop), svtype]))
+
 sv_bed = BedTool(sv_bed_list).filter(lambda x: len(x) > 0).saveas()
 # Create a dummy BedTool for when it's not specified as an argument (i.e. the user doesn't want to use it). I have to do it this way because it doesn't work when I just create an empty BedTool...
 exclude_bed = BedTool("chrZ 0 1", from_string = True)
@@ -192,6 +216,10 @@ features_table_filepath =  "{}/{}_sv2_features_{}.tsv".format(output_folder, arg
 df_features_table.to_csv(features_table_filepath, sep = "\t", index = False)
 
 print("Making feature table step done at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
+
+if args.features_only:
+    print("Stopping after feature extraction.")
+    sys.exit(0)
 
 """ classify.py step """
 print("Genotyping SV calls at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
@@ -256,6 +284,6 @@ print("Genotyping step done at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime()
 
 """ make_vcf.py step """
 print("Making VCF at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
-make_vcf(args.sample_name, args.reference_fasta, genotype_table_filepath, output_folder, sv2_command, current_time)
+make_vcf(args.sample_name, args.reference_fasta, genotype_table_filepath, output_folder, sv2_command, current_time, sv_bed_list_unfiltered)
 
 print("Making VCF step done at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))

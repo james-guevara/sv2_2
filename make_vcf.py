@@ -8,13 +8,14 @@ import pysam
 import pysam.bcftools
 from time import gmtime, strftime
 
-def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_folder, sv2_command, current_time):
+def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_folder, sv2_command, current_time, sv_bed_list_unfiltered):
     vcf_header = pysam.VariantHeader()
     vcf_header.add_sample(sample_name)
     vcf_header.add_line("##SV2_CMD='{}'".format(sv2_command))
     # FILTER fields
     vcf_header.add_meta("FILTER", items = [ ("ID", "FAIL"), ("Description", "Variant failed standard filters") ] )
     vcf_header.add_meta("FILTER", items = [ ("ID", "PASS"), ("Description", "Variant passed standard filters") ] )
+    vcf_header.add_meta("FILTER", items = [ ("ID", "UNGENOTYPED"), ("Description", "Variant was not genotyped (perhaps malformed, or in exclude region)") ] )
     # INFO fields
     vcf_header.add_meta("INFO", items = [ ("ID", "END"), ("Number", 1), ("Type", "Integer"), ("Description", "End position of structural variant") ] )
     vcf_header.add_meta("INFO", items = [ ("ID", "SVTYPE"), ("Number", 1), ("Type", "String"), ("Description", "Type of structural variant") ] )
@@ -45,6 +46,8 @@ def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_fo
             index_dictionary[name] = index
         return index_dictionary
 
+    # Output all the variants into the VCF, even the ones we don't genotype. This requires the original SV file
+    genotype_records = set()
     with open(genotype_predictions_table, "r") as f:
         header_list = f.readline().rstrip().split("\t")
         index_dictionary = make_column_indices_table(header_list)
@@ -56,6 +59,8 @@ def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_fo
             end   = int(linesplit[index_dictionary["end"]])
             type_ = linesplit[index_dictionary["type"]] 
             size  = int(linesplit[index_dictionary["size"]])
+
+            genotype_records.add((chrom, start, end, type_))
 
             # Coverage features
             coverage             = linesplit[index_dictionary["coverage"]] 
@@ -166,7 +171,20 @@ def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_fo
 
             record.filter.add(FILTER)
             vcf.write(record)
-    
+
+    for sv in sv_bed_list_unfiltered:
+        print(sv)
+        chrom, start, end, type_ = sv.split("\t")[0], int(sv.split("\t")[1]), int(sv.split("\t")[2]), sv.split("\t")[3]
+        sv_tuple = (chrom, start, end, type_)
+        if sv_tuple not in genotype_records:
+            record = vcf.new_record(contig = chrom, start = start, stop = end, alleles = ("N", "<{}>".format(type_)))
+            record.filter.add("UNGENOTYPED")
+            record.qual = -1
+            record.info["SVTYPE"] = type_
+            record.info["SVLEN"] = end - start + 1
+            record.samples[sample_name]["GT"] = (".", ".")
+            vcf.write(record)
+
     vcf.close()
     pysam.bcftools.sort("-o", "{}.gz".format(vcf_filename), vcf_filename, catch_stdout = False)
 
