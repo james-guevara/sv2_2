@@ -7,12 +7,34 @@ import argparse
 def initialize_output_dataframe(columns = ["chrom", "start", "end", "type", "HOM_GENOTYPE_LIKELIHOOD", "HET_GENOTYPE_LIKELIHOOD", "REF_GENOTYPE_LIKELIHOOD"]):
     return pd.DataFrame(columns = ["chrom", "start", "end", "type", "HOM_GENOTYPE_LIKELIHOOD", "HET_GENOTYPE_LIKELIHOOD", "REF_GENOTYPE_LIKELIHOOD"])
 
+
+##def filter_fn(row, chrom, par_start, par_end):
+##    if row["chrom"].str.contains(chrom):
+##        if row["start"] < par_start and row["end"] > par_start: return True
+##        elif row["start"] > par_start and row["end"] < par_end: return True
+##        elif row["start"] < par_end and row["end"] > par_end: return True
+##    return False
+#
+## Default PAR regions are from hg38: https://uswest.ensembl.org/info/genome/genebuild/human_PARS.html
+## Use lambda function?
+#def get_par_intersecting_svs(df_male_sex_chromosomes, PAR1 = (("X", 10001, 2781479), ("Y", 10001, 2781479)), PAR2 = (("X", 155701383, 156030895), ("Y", 56887903, 57217415)) )
+#    # df_male_sex_chromosomes_intersect_with_par = df_male_sex_chromosomes[df["chrom"] == PAR1[0] & df["start"] < PAR1[1] & df["end"
+#    df_male_x_par1 = df_male_sex_chromosomes[df_male_sex_chromosomes.apply(filter_fn, args = PAR1[0])]
+#    df_male_y_par1 = df_male_sex_chromosomes[df_male_sex_chromosomes.apply(filter_fn, args = PAR1[1])]
+#    df_male_x_par2 = df_male_sex_chromosomes[df_male_sex_chromosomes.apply(filter_fn, args = PAR2[0])]
+#    df_male_y_par2 = df_male_sex_chromosomes[df_male_sex_chromosomes.apply(filter_fn, args = PAR2[1])]
+#    df_par = pd.concat([df_male_x_par1, df_male_y_par1, df_male_x_par2, df_male_y_par2]).drop_duplicates()
+#    return df_par
+
 def load_features(features_table_filepath, sex):
     df = pd.read_csv(features_table_filepath, sep = "\t")
     df_male_sex_chromosomes = pd.DataFrame(columns = df.columns)
     if sex == "male":
         # Filter out the sex chromosome SVs from the main dataframe
         df_male_sex_chromosomes = df[(mask := (df["chrom"].str.contains("X") | df["chrom"].str.contains("Y")))]
+        # Get PAR region and then subtract it out from df_male_sex_chromosomes 
+        # df_par = get_par_intersecting_svs(df_male_sex_chromosomes)
+        # df_male_sex_chromosomes = df_male_sex_chromosomes[~df_male_sex_chromosomes.index.isin(df_par.index)]
         df = df[~mask]
     return df, df_male_sex_chromosomes
 

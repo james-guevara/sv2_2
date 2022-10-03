@@ -130,6 +130,8 @@ def get_snv_preprocessing_data(snv_vcf_filepath, chroms, regions_table, sample_i
                 chrom_depths.append(record.samples[sample_index]["DP"])
 
         snv_preprocessing_table[chrom] = {"median_chrom_depth": 0., "len_chrom_depth": 0}
+        chrom_depths = np.array(chrom_depths)
+        chrom_depths = chrom_depths[chrom_depths != np.array(None)]
         if len(chrom_depths) > 0:
             snv_preprocessing_table[chrom]["median_chrom_depth"] = np.nanmedian(chrom_depths) 
             snv_preprocessing_table[chrom]["len_chrom_depth"] = len(chrom_depths) 
@@ -226,6 +228,7 @@ def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes
 
                 if record.samples[sample_index]["GT"][0] == record.samples[sample_index]["GT"][1]: continue
                 if record.samples[sample_index]["AD"][0] == 0 or record.samples[sample_index]["AD"][1] == 0: continue
+                if record.samples[sample_index]["AD"][0] is None or record.samples[sample_index]["AD"][1] is None: continue
                 AR = float(record.samples[sample_index]["AD"][0])/float(record.samples[sample_index]["AD"][1])
                 if AR > 1: AR = 1/AR
                 locus_HADs.append(AR)
@@ -233,6 +236,8 @@ def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes
         snv_features_table[(chrom, start, end)] = {}
         snv_features_table[(chrom, start, end)]["snv_coverage"] = 0. # Change to float("nan") maybe (originally this was np.nan)
         snv_features_table[(chrom, start, end)]["heterozygous_allele_ratio"] = np.nan # Change to float("nan") maybe (originally this was np.nan)
+        locus_depths = np.array(locus_depths)
+        locus_depths = locus_depths[locus_depths != np.array(None)]
         if len(locus_depths) > 0:
             if chrom in df_preprocessing_table["chrom"].values: snv_features_table[(chrom, start, end)]["snv_coverage"] = float(np.nanmedian(locus_depths))/df_preprocessing_table[df_preprocessing_table["chrom"] == chrom]["median_chrom_depth"].values[0]
             snv_features_table[(chrom, start, end)]["heterozygous_allele_ratio"] = np.nanmedian(locus_HADs)
@@ -241,7 +246,7 @@ def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes
 
     return snv_features_table
 
-def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed, df_preprocessing_table, sv_interval_table, svtypes, GC_content_reference_table, M_flag, threads = 1):
+def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed, df_preprocessing_table, sv_interval_table, svtypes, GC_content_reference_table, M_flag, PCR_free_flag, threads = 1):
     def calculate_gc_content_fraction(sv_interval_table_nucleotide_content_list):
         # https://daler.github.io/pybedtools/autodocs/pybedtools.bedtool.BedTool.nucleotide_content.html
         # The elements in each sublist are as follows: 
@@ -306,7 +311,7 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
     if alignment_filepath.endswith(".bam"): mode = "rb"
     alignment_iterator = pysam.AlignmentFile(alignment_filepath, mode = mode, reference_filename = reference_filepath, threads = threads)
     for index, sv in enumerate(sv_bed):
-        # print("Call: {}".format(sv))
+        print("Call: {}".format(sv))
         chrom, start, end, svtype = sv[0], int(sv[1]), int(sv[2]), sv[3]
         if (chrom, start, end, svtype) not in sv_interval_table: continue 
         if svtype not in svtypes: continue
@@ -355,10 +360,12 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
         gc_content = int(base * round((100*gc_content_fraction)/5))
         gc_norm_factor_read_count = 1.0
         gc_norm_factor_depth_of_coverage = 1.0
-        if ("PCR-READCOUNT", gc_content) in GC_content_reference_table: gc_norm_factor_read_count = GC_content_reference_table[("PCR-DOC", gc_content)]
-        if ("PCR-DOC", gc_content) in GC_content_reference_table: gc_norm_factor_depth_of_coverage = GC_content_reference_table[("PCR-DOC", gc_content)]
-        # DEBUGGING
-        # Maybe change adjusted coverage value?
+        if PCR_free_flag: 
+            if ("PCRFREE-READCOUNT", gc_content) in GC_content_reference_table: gc_norm_factor_read_count = GC_content_reference_table[("PCRFREE-READCOUNT", gc_content)]
+            if ("PCRFREE-DOC", gc_content) in GC_content_reference_table: gc_norm_factor_depth_of_coverage = GC_content_reference_table[("PCRFREE-DOC", gc_content)]
+        else:
+            if ("PCR-READCOUNT", gc_content) in GC_content_reference_table: gc_norm_factor_read_count = GC_content_reference_table[("PCR-DOC", gc_content)]
+            if ("PCR-DOC", gc_content) in GC_content_reference_table: gc_norm_factor_depth_of_coverage = GC_content_reference_table[("PCR-DOC", gc_content)]
         coverage_GCcorrected = gc_norm_factor_read_count * coverage 
 
         split_read_count: int = 0
@@ -411,6 +418,7 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
         # print("Discordant_count: {}".format(discordant_read_count))
         # print("Split_count: {}".format(split_read_count))
         # print("Concordant_count: {}".format(concordant_read_count))
+        # If I want SVs of different types with same start and end, then I should use type
         alignment_features_table[(chrom, start, end)] = {}
         alignment_features_table[(chrom, start, end)]["type"] = svtype
         alignment_features_table[(chrom, start, end)]["size"] = svlen
