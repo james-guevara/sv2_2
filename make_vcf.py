@@ -60,6 +60,8 @@ def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_fo
             type_ = linesplit[index_dictionary["type"]] 
             size  = int(linesplit[index_dictionary["size"]])
 
+            # print("{}\t{}\t{}\t{}".format(chrom, start, end, type_))
+
             genotype_records.add((chrom, start, end, type_))
 
             # Coverage features
@@ -71,7 +73,10 @@ def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_fo
             split_ratio      = float(linesplit[index_dictionary["split_ratio"]]) 
 
             # SNV features
-            snv_coverage              = float(linesplit[index_dictionary["snv_coverage"]])
+            snv_coverage              = linesplit[index_dictionary["snv_coverage"]]
+            if snv_coverage == "": snv_coverage = float("nan")
+            elif snv_coverage == "inf": snv_coverage = float("inf")
+            else: snv_coverage = float(snv_coverage)
             heterozygous_allele_ratio = linesplit[index_dictionary["heterozygous_allele_ratio"]]
             if heterozygous_allele_ratio == "": heterozygous_allele_ratio = float("nan")
             snvs                      = int(linesplit[index_dictionary["snvs"]])
@@ -172,8 +177,8 @@ def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_fo
             record.filter.add(FILTER)
             vcf.write(record)
 
+    print("Ungenotyped SVs...")
     for sv in sv_bed_list_unfiltered:
-        print(sv)
         chrom, start, end, type_ = sv.split("\t")[0], int(sv.split("\t")[1]), int(sv.split("\t")[2]), sv.split("\t")[3]
         sv_tuple = (chrom, start, end, type_)
         if sv_tuple not in genotype_records:

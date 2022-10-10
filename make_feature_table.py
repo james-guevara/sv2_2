@@ -311,7 +311,7 @@ def make_alignment_features_table(alignment_filepath, reference_filepath, sv_bed
     if alignment_filepath.endswith(".bam"): mode = "rb"
     alignment_iterator = pysam.AlignmentFile(alignment_filepath, mode = mode, reference_filename = reference_filepath, threads = threads)
     for index, sv in enumerate(sv_bed):
-        print("Call: {}".format(sv))
+        # print("Call: {}".format(sv))
         chrom, start, end, svtype = sv[0], int(sv[1]), int(sv[2]), sv[3]
         if (chrom, start, end, svtype) not in sv_interval_table: continue 
         if svtype not in svtypes: continue

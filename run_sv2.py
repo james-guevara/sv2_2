@@ -46,7 +46,7 @@ parser_sv_group = parser.add_mutually_exclusive_group(required = True)
 parser_sv_group.add_argument("--sv_bed_file", help = "SV BED file input")
 parser_sv_group.add_argument("--sv_vcf_file", help = "SV VCF file input")
 
-parser.add_argument("--preprocessing_table_input", help = "A pre-generated preprocessing table (if SV2 had been run before and you want to skip the preprocessing part of the program")
+parser.add_argument("--preprocessing_table_input", help = "A pre-generated preprocessing table (if SV2 had been run before and you want to skip the preprocessing part of the program)")
 parser.add_argument("--gc_reference_table", help = "GC content reference table input")
 parser.add_argument("--ped_file", help = "Pedigree file", required = True)
 # From classify.py step
@@ -65,6 +65,10 @@ parser.add_argument("-preprocess_only", action = "store_true", help = "Stop afte
 parser.add_argument("-features_only", action = "store_true", help = "Stop after feature extraction.")
 # Analyze non-standard contigs in regions file
 parser.add_argument("-contigs", action = "store_true", help = "Look at all contigs in regions file.")
+# SV length threshold
+parser.add_argument("--threshold", help = "SV length threshold.", type = int)
+# If we have a feature table input, then we can skip to genotyping step and making the VCF (not used yet)
+# parser.add_argument("--feature_table_input", help = "A pre-generated feature table (if SV2 had been run before and you don't want to waste time extracting features again)")
 
 args = parser.parse_args()
 
@@ -192,6 +196,7 @@ elif args.sv_vcf_file:
         sv_bed_list.append("\t".join([chrom, str(start), str(stop), svtype]))
 
 sv_bed = BedTool(sv_bed_list).filter(lambda x: len(x) > 0).saveas()
+if args.threshold: sv_bed = sv_bed.filter(lambda x: len(x) < args.threshold).saveas()
 # Create a dummy BedTool for when it's not specified as an argument (i.e. the user doesn't want to use it). I have to do it this way because it doesn't work when I just create an empty BedTool...
 exclude_bed = BedTool("chrZ 0 1", from_string = True)
 if args.exclude_regions_bed: exclude_bed = BedTool(args.exclude_regions_bed).merge()
@@ -292,3 +297,4 @@ print("Making VCF at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
 make_vcf(args.sample_name, args.reference_fasta, genotype_table_filepath, output_folder, sv2_command, current_time, sv_bed_list_unfiltered)
 
 print("Making VCF step done at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
+
