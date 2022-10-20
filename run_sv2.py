@@ -65,7 +65,7 @@ parser.add_argument("-preprocess_only", action = "store_true", help = "Stop afte
 parser.add_argument("-features_only", action = "store_true", help = "Stop after feature extraction.")
 # Analyze non-standard contigs in regions file
 parser.add_argument("-contigs", action = "store_true", help = "Look at all contigs in regions file.")
-# SV length threshold
+# SV length threshold (use 1MB default)
 parser.add_argument("--threshold", help = "SV length threshold.", type = int)
 # If we have a feature table input, then we can skip to genotyping step and making the VCF (not used yet)
 # parser.add_argument("--feature_table_input", help = "A pre-generated feature table (if SV2 had been run before and you don't want to waste time extracting features again)")
