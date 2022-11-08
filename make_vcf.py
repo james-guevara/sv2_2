@@ -37,7 +37,7 @@ def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_fo
     for contig, contig_length in zip(fasta.references, fasta.lengths):
         vcf_header.contigs.add(contig, length = contig_length)
 
-    vcf_filename = "{}/{}_sv2_{}.vcf".format(output_folder, sample_name, current_time)
+    vcf_filename = "{}/{}_sv2.vcf".format(output_folder, sample_name)
     vcf = pysam.VariantFile(vcf_filename, "w", header = vcf_header)
 
     def make_column_indices_table(header_list):

@@ -154,7 +154,7 @@ if not args.preprocessing_table_input:
     df_preprocessing_table = df_alignment_preprocessing_table.join(df_snv_preprocessing_table).reset_index(level = 0).rename(columns = {"index": "chrom"})
 
     # Save preprocessing table to output folder
-    preprocessing_table_filepath =  "{}/{}_sv2_preprocessing_features_{}.tsv".format(output_folder, args.sample_name, current_time)
+    preprocessing_table_filepath =  "{}/{}_sv2_preprocessing_features.tsv".format(output_folder, args.sample_name)
     df_preprocessing_table.to_csv(preprocessing_table_filepath, sep = "\t", index = False)
 
     print("Preprocessing step done at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
@@ -222,7 +222,7 @@ if (df_features_table.empty):
     sys.exit()
 
 # Save SV features table
-features_table_filepath =  "{}/{}_sv2_features_{}.tsv".format(output_folder, args.sample_name, current_time)
+features_table_filepath =  "{}/{}_sv2_features.tsv".format(output_folder, args.sample_name)
 df_features_table.to_csv(features_table_filepath, sep = "\t", index = False)
 
 print("Making feature table step done at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
@@ -287,7 +287,7 @@ df_preds_concat_sorted["GEN"] = "./."
 if not df_preds_concat_sorted.empty: df_preds_concat_sorted["GEN"] = df_preds_concat_sorted[["REF_GENOTYPE_LIKELIHOOD", "HET_GENOTYPE_LIKELIHOOD", "HOM_GENOTYPE_LIKELIHOOD"]].apply(lambda x: get_genotype(*x), axis = 1)
 
 # Save genotype predictions table
-genotype_table_filepath = "{}/{}_genotyping_preds_{}.tsv".format(output_folder, args.sample_name, current_time)
+genotype_table_filepath = "{}/{}_genotyping_preds.tsv".format(output_folder, args.sample_name)
 df_preds_concat_sorted.to_csv(genotype_table_filepath, sep = "\t", index = False)
 
 print("Genotyping step done at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
