@@ -8,6 +8,30 @@ import pysam
 import pysam.bcftools
 from time import gmtime, strftime
 
+def gt1kb_del_filter(svlen: int, discordant_ratio: float, split_ratio: float, SQ: float):
+    if discordant_ratio > 0 and split_ratio > 0: return SQ >= 8
+    else:
+        if svlen < 3000: return False
+        if svlen < 5000: return SQ >= 20
+        return SQ >= 18
+
+def lt1kb_del_filter(svlen: int, discordant_ratio: float, split_ratio: float, SQ: float):
+    if discordant_ratio > 0 and split_ratio > 0: return SQ >= 8
+    else: return SQ >= 18
+     
+
+def del_filter(svlen: int, discordant_ratio: float, split_ratio: float, SQ: float):
+    if svlen > 1000: return gt1kb_del_filter(svlen, discordant_ratio, split_ratio)
+    else: return lt1kb_del_filter(svlen, discordant_ratio, split_ratio)
+
+def dup_filter(svlen: int, discordant_ratio: float, split_ratio: float, SQ: float):
+
+
+def calculate_filter(svtype: str, svlen: int, discordant_ratio: float, split_ratio: float, SQ: float):
+    if svtype == "DEL": return del_filter(svlen, discordant_ratio, split_ratio)
+    else: return dup_filter(svlen, discordant_ratio, split_ratio)
+
+
 def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_folder, sv2_command, current_time, sv_bed_list_unfiltered):
     vcf_header = pysam.VariantHeader()
     vcf_header.add_sample(sample_name)
