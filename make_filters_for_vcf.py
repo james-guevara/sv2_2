@@ -29,6 +29,23 @@ def calculate_filter(svtype: str, svlen: int, discordant_ratio: float, split_rat
     if svtype == "DEL": return del_filter(svlen, discordant_ratio, split_ratio, SQ)
     else: return dup_filter(svlen, discordant_ratio, split_ratio, SQ)
 
+# DENOVO_FILTER functions
+def denovo_dup_filter(svlen: int, discordant_ratio: float, split_ratio: float, SQ: float):
+    if discordant_ratio > 0 or split_ratio > 0: return SQ >= 11
+    else: return SQ >= 10
+    
+
+def denovo_del_filter(svlen: int, discordant_ratio: float, split_ratio: float, SQ: float):
+    if discordant_ratio > 0 or split_ratio > 0: return SQ >= 12
+    else:
+        if svlen <= 1000: return SQ >= 24
+        return SQ >= 20
+
+def calculate_denovo_filter(svtype: str, svlen: int, discordant_ratio: float, split_ratio: float, SQ: float):
+    if svtype == "DEL": return denovo_del_filter(svlen, discordant_ratio, split_ratio, SQ)
+    else: return denovo_dup_filter(svlen, discordant_ratio, split_ratio, SQ)
+
+
 vcf_iterator = pysam.VariantFile(sys.argv[1])
 
 number_of_samples = len(vcf_iterator.header.samples)
