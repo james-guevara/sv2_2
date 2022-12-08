@@ -24,7 +24,7 @@ def del_filter(svlen: int, discordant_ratio: float, split_ratio: float, SQ: floa
     if svlen > 1000: return gt1kb_del_filter(svlen, discordant_ratio, split_ratio)
     else: return lt1kb_del_filter(svlen, discordant_ratio, split_ratio)
 
-def dup_filter(svlen: int, discordant_ratio: float, split_ratio: float, SQ: float):
+def dup_filter(svlen: int, discordant_ratio: float, split_ratio: float, SQ: float): pass
 
 
 def calculate_filter(svtype: str, svlen: int, discordant_ratio: float, split_ratio: float, SQ: float):
