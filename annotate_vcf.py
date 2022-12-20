@@ -1,110 +1,83 @@
-from pysam import VariantFile
+import pysam
 from pybedtools import BedTool
+import sys
 
-a = BedTool("sv2_output/NA12878_sv2_2022-07-14_23.10.37.vcf.gz")
-b = BedTool("data/annotation_files/hg38_cytoband.bed")
-# bedtools intersect usage and option summary: https://bedtools.readthedocs.io/en/latest/content/tools/intersect.html
-# wao: Write the original A and B entries plus the number of base pairs of overlap between the two features. However, A features w/o overlap are also reported with a NULL B feature and overlap = 0. Restricted by -f and -r.
-# f: Minimum overlap required as a fraction of A. Default is 1E-9 (i.e. 1bp).
-# F: Minimum overlap required as a fraction of B. Default is 1E-9 (i.e., 1bp).
-# wa: Write the original entry in A for each overlap.
-# wb: Write the original entry in B for each overlap. Useful for knowing what A overlaps. Restricted by -f and -r.
+sv_bed_list = []
+vcf_iterator = pysam.VariantFile(sys.argv[1])
+for record in vcf_iterator:
+    chrom, start, stop, svtype = record.chrom, record.start, record.stop, record.info["SVTYPE"]
+    sv_bed_list.append("\t".join([chrom, str(start), str(stop), svtype]))
+vcf_iterator.close()
+sv_bed = BedTool(sv_bed_list)
 
-cytoband_intersection = a.intersect(b, wao = True) # Can output multiple lines for the same variant in the SV2 VCF
-# repeatmasker_intersection = a.intersect("data/annotation_files/hg38_repeatmasker.bed.gz", f = 0.8, F = 0.8, wa = True, wb = True)
-thousand_genomes_deletions_intersection = a.intersect("data/annotation_files/hg38_1000Genomes_DEL.bed", f = 0.8, F = 0.8, wao = True)
-thousand_genomes_duplications_intersection = a.intersect("data/annotation_files/hg38_1000Genomes_DUP.bed", f = 0.8, F = 0.8, wao = True)
-# genes_intersection = a.intersect("data/annotation_files/hg38_genes.bed.gz", wa = True, wb = True)
+repeatmasker_bed = BedTool("data/annotation_files/hg38_repeatmasker.bed.gz")
+sv2_repeatmasker_intersection = sv_bed.intersect(repeatmasker_bed, f = 0.8, r = True, wa = True, wb = True)
+repeatmasker_dict = {}
+for interval in sv2_repeatmasker_intersection:
+    chrom, start, stop, svtype = interval[0], interval[1], interval[2], interval[3]
+    ID = "{}:{}:{}:{}".format(chrom, start, stop, svtype)
+    if ID not in repeatmasker_dict: repeatmasker_dict[ID] = {"REPEATMASKER": None, "REPEATMASKER_OVERLAP": 0.}
 
-abparts_intersection = a.intersect("data/annotation_files/hg38_abparts.bed", wao = True)
-centromere_intersection = a.intersect("data/annotation_files/hg38_centromere.bed", wao = True)
-gap_intersection = a.intersect("data/annotation_files/hg38_gap.bed", wao = True)
-segDup_intersection = a.intersect("data/annotation_files/hg38_segDup.bed", wao = True)
-STR_intersection = a.intersect("data/annotation_files/hg38_STR.bed", wao = True)
+    name = "{}:{}:{}".format(interval[8], interval[9], interval[7])
+    sv_start, sv_end = int(interval[1]), int(interval[2])
+    repeatmasker_start, repeatmasker_end = int(interval[5]), int(interval[6])
+    overlap = min(sv_end, repeatmasker_end) - max(sv_start, repeatmasker_start)
 
-def bedtool_to_dictionary(bed_intersection, annotation_type):
-    intersection_table = {}
-    for sv in bed_intersection: 
-        chrom, pos, svtype, info = sv[0], sv[1], sv[4], sv[7].split(";")
-        end, svtype, svlen = info[0].split("=")[1], info[1].split("=")[1], info[2].split("=")[1] # Overwriting the previous svtype but it should be the same thing anyway (and without the "<>" characters)
-        key = "{}:{}:{}:{}:{}".format(chrom, pos, end, svtype, svlen)
+    reciprocal_overlap = min( float(overlap)/(sv_end - sv_start), float(overlap)/(repeatmasker_end - repeatmasker_start) ) 
+    repeatmasker_dict[ID]["REPEATMASKER"] = name
+    repeatmasker_dict[ID]["REPEATMASKER_OVERLAP"] = reciprocal_overlap
 
-        if annotation_type == "cytoband": 
-            cytoband = sv[-3]
-            intersection_table[key] = "{}{}".format(chrom.removeprefix("chr"), cytoband)
-        elif annotation_type == "thousand_genomes_deletions":
-            if svtype != "DEL": continue
-            intersection_table[key] = {"1000G_ID": "NA", "1000G_OVERLAP": 0}
-            if sv[-1] == "0": continue
-            intersection_table[key]["1000G_ID"] = sv[-2]
-            intersection_table[key]["1000G_OVERLAP"] = float(sv[-1])/float(svlen)
-        elif annotation_type == "thousand_genomes_duplications":
-            if svtype != "DUP": continue
-            intersection_table[key] = {"1000G_ID": "NA", "1000G_OVERLAP": 0}
-            if sv[-1] == "0": continue
-            intersection_table[key]["1000G_ID"] = sv[-2]
-            intersection_table[key]["1000G_OVERLAP"] = float(sv[-1])/float(svlen)
-        elif annotation_type == "genes":
-            intersection_table[key] = sv[-1]
-        elif annotation_type in ("abparts", "centromere", "gap", "segDup", "STR"):
-            intersection_table[key] = float(sv[-1])/float(svlen)
+excluded_regions_bed = BedTool("data/excluded_regions_bed_files/hg38_excluded.bed.gz")
+sv2_excluded_regions_intersection = sv_bed.intersect(excluded_regions_bed, wao = True)
+excluded_regions_dict = {}
+for interval in sv2_excluded_regions_intersection:
+    chrom, start, stop, svtype = interval[0], interval[1], interval[2], interval[3]
+    ID = "{}:{}:{}:{}".format(chrom, start, stop, svtype)
+    if ID not in excluded_regions_dict: excluded_regions_dict[ID] = {"abparts": 0, "centromere": 0, "gap": 0, "segDup": 0, "STR": 0}
 
-    return intersection_table
+    excluded_region_type = interval[-2]
+    if excluded_region_type == ".": continue
+    sv_basepair_overlap = int(interval[-1])
+    excluded_regions_dict[ID][excluded_region_type] += sv_basepair_overlap
 
-cytoband_table = bedtool_to_dictionary(cytoband_intersection, "cytoband")
-thousand_genomes_deletions_table = bedtool_to_dictionary(thousand_genomes_deletions_intersection, "thousand_genomes_deletions")
-thousand_genomes_duplications_table = bedtool_to_dictionary(thousand_genomes_duplications_intersection, "thousand_genomes_duplications")
-# genes_table = bedtool_to_dictionary(genes_intersection, "genes")
-abparts_table = bedtool_to_dictionary(abparts_intersection, "abparts")
-centromere_table = bedtool_to_dictionary(centromere_intersection, "centromere")
-gap_table = bedtool_to_dictionary(gap_intersection, "gap")
-segDup_table = bedtool_to_dictionary(segDup_intersection, "segDup")
-STR_table = bedtool_to_dictionary(STR_intersection, "STR")
 
-vcf_in = VariantFile("sv2_output/NA12878_sv2_2022-07-14_23.10.37.vcf.gz")
-vcf_out = VariantFile("sv2_output/NA12878_sv2_2022-07-14_23.10.37.annotated.vcf.gz", mode = "w", header = vcf_in.header)
-vcf_out.header.add_meta(key = "INFO", items = [ ("ID", "CYTOBAND"), ("Number", 1), ("Type", "String"), ("Description", "Cytoband(s) overlapping the variant") ] )
-# Any INFO field that contains "1000G" is reserved (I think) based on looking at this line (line 468 as of 2022-07-15): https://github.com/samtools/htslib/blob/develop/vcf.c
-# """
-# if ( !strcmp(val,"1000G") ) return 0;
-# """
-# So I'm renaming them...
-vcf_out.header.add_meta(key = "INFO", items = [ ("ID", "THOUSAND_GENOMES_ID_SV2"), ("Number", 1), ("Type", "String"), ("Description", "1000 Genomes Phase 3 integrated SV callset variant identifier") ] )
-vcf_out.header.add_meta(key = "INFO", items = [ ("ID", "THOUSAND_GENOMES_OVERLAP_SV2"), ("Number", 1), ("Type", "Float"), ("Description", "Overlap to 1000 Genomes Phase 3 variant, in the range (0,1)") ] )
-# vcf_out.header.add_meta(key = "INFO", items = [ ("ID", "GENES"), ("Number", 1), ("Type", "String"), ("Description", "Genes overlapping the variant, pipe-separated by transcripts") ] )
-# header.add_meta(key = "INFO", items = [ ("ID", "REPEATMASKER"), ("Number", 2), ("Type", "String"), ("Description", "Name and reciprocal overlap of RepeatMasker variant") ] )
+vcf_iterator = pysam.VariantFile(sys.argv[1])
+vcf_out = pysam.VariantFile(sys.argv[2], mode = "w", header = vcf_iterator.header)
+
+vcf_out.header.add_meta(key = "FILTER", items = [ ("ID", "ABPARTS"), ("Description", "Variant (50% or more) overlaps antibody parts region.") ] )
+vcf_out.header.add_meta(key = "FILTER", items = [ ("ID", "GAP"), ("Description", "Variant (50% or more) overlaps gap region.") ] )
+vcf_out.header.add_meta(key = "FILTER", items = [ ("ID", "CENTROMERE"), ("Description", "Variant (50% or more) overlaps centromere region.") ] )
+vcf_out.header.add_meta(key = "FILTER", items = [ ("ID", "SEGDUP"), ("Description", "Variant (50% or more) overlaps segmental duplication region.") ] )
+vcf_out.header.add_meta(key = "FILTER", items = [ ("ID", "STR"), ("Description", "Variant (50% or more) overlaps STR region.") ] )
+
+vcf_out.header.add_meta(key = "INFO", items = [ ("ID", "REPEATMASKER"), ("Number", 2), ("Type", "String"), ("Description", "Name and reciprocal overlap of RepeatMasker variant") ] )
 vcf_out.header.add_meta(key = "INFO", items = [ ("ID", "ABPARTS"), ("Number", 1), ("Type", "Float"), ("Description", "Overlap to antibody parts, in the range (0,1)") ] )
 vcf_out.header.add_meta(key = "INFO", items = [ ("ID", "CENTROMERE"), ("Number", 1), ("Type", "Float"), ("Description", "Centromere overlap, in the range (0,1)") ] )
 vcf_out.header.add_meta(key = "INFO", items = [ ("ID", "GAP"), ("Number", 1), ("Type", "Float"), ("Description", "Overlap to gaps in the reference, in the range (0,1)") ] )
 vcf_out.header.add_meta(key = "INFO", items = [ ("ID", "SEGDUP"), ("Number", 1), ("Type", "Float"), ("Description", "Segmental duplication overlap, in the range (0,1)") ] )
 vcf_out.header.add_meta(key = "INFO", items = [ ("ID", "STR"), ("Number", 1), ("Type", "Float"), ("Description", "Short tandem repeat overlap, in the range (0,1)") ] )
 
-##INFO=<ID=UNMAPPABLE,Number=1,Type=Float,Description="Overlap to DAC Blacklisted Regions, in the range (0,1)">
+for record in vcf_iterator:
+    new_record = vcf_out.header.new_record(contig = record.chrom, start = record.start, stop = record.stop, alleles = record.alleles, id = record.id, qual = record.qual, filter = record.filter, info = record.info)
+    ID = "{}:{}:{}:{}".format(record.chrom, record.start, record.stop, record.info["SVTYPE"])
 
+    if ID in repeatmasker_dict: new_record.info["REPEATMASKER"] = (repeatmasker_dict[ID]["REPEATMASKER"], str(repeatmasker_dict[ID]["REPEATMASKER_OVERLAP"]))
 
-format_tuple = ("GT", "PE", "SR", "SC", "NS", "HA", "NH", "SQ", "GL")
-for record in vcf_in:
-    new_record = vcf_out.header.new_record(contig = record.chrom, start = record.pos, stop = record.stop, alleles = record.alleles, id = record.id, qual = record.qual, filter = record.filter, info = record.info)
-    key = "{}:{}:{}:{}:{}".format(record.chrom, record.pos, record.stop, record.info["SVTYPE"], record.info["SVLEN"]) # record.info["END"] doesn't work, so I use this instead which outputs the appropriate info field ("END")
+    # Calculate fraction of overlap with each excluded region
+    new_record.info["ABPARTS"] = excluded_regions_dict[ID]["abparts"]/float(record.info["SVLEN"])
+    new_record.info["CENTROMERE"] = excluded_regions_dict[ID]["centromere"]/float(record.info["SVLEN"])
+    new_record.info["GAP"] = excluded_regions_dict[ID]["gap"]/float(record.info["SVLEN"])
+    new_record.info["SEGDUP"] = excluded_regions_dict[ID]["segDup"]/float(record.info["SVLEN"])
+    new_record.info["STR"] = excluded_regions_dict[ID]["STR"]/float(record.info["SVLEN"])
 
-    # Add new annotations
-    new_record.info["CYTOBAND"] = cytoband_table[key] 
-    if record.info["SVTYPE"] == "DEL":
-        new_record.info["THOUSAND_GENOMES_ID_SV2"] = thousand_genomes_deletions_table[key]["1000G_ID"]
-        new_record.info["THOUSAND_GENOMES_OVERLAP_SV2"] = thousand_genomes_deletions_table[key]["1000G_OVERLAP"]
-    elif record.info["SVTYPE"] == "DUP":
-        new_record.info["THOUSAND_GENOMES_ID_SV2"] = thousand_genomes_duplications_table[key]["1000G_ID"]
-        new_record.info["THOUSAND_GENOMES_OVERLAP_SV2"] = thousand_genomes_duplications_table[key]["1000G_OVERLAP"]
-    new_record.info["ABPARTS"] = abparts_table[key] 
-    new_record.info["CENTROMERE"] = centromere_table[key] 
-    new_record.info["GAP"] = gap_table[key] 
-    new_record.info["SEGDUP"] = segDup_table[key] 
-    new_record.info["STR"] = STR_table[key] 
+    # Add filter flags if the variant overlap is greater than 50% (for each excluded region)
+    if new_record.info["ABPARTS"] >= 0.5: new_record.filter.add("ABPARTS") 
+    if new_record.info["CENTROMERE"] >= 0.5: new_record.filter.add("CENTROMERE") 
+    if new_record.info["GAP"] >= 0.5: new_record.filter.add("GAP") 
+    if new_record.info["SEGDUP"] >= 0.5: new_record.filter.add("SEGDUP") 
+    if new_record.info["STR"] >= 0.5: new_record.filter.add("STR") 
 
-    # I'm not going to annotate the genes (leave that to another annotation utility)
-    # if key not in genes_table: new_record.info["GENES"] = "intergenic"
-    # else: new_record.info["GENES"] = genes_table[key]
+    for i in range(len(record.samples)):
+        for format_ in record.samples[i]: new_record.samples[i][format_] = record.samples[i][format_]
 
-    # Add format fields for sample (there should only be 1 sample)
-    for element in format_tuple: new_record.samples[0][element] = record.samples[0][element]
-    vcf_out.write(new_record) 
+    vcf_out.write(new_record)

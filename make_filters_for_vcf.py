@@ -48,16 +48,18 @@ def calculate_denovo_filter(svtype: str, svlen: int, discordant_ratio: float, sp
 
 vcf_iterator = pysam.VariantFile(sys.argv[1])
 
-number_of_samples = len(vcf_iterator.header.samples)
-SQs = np.zeros(shape = (number_of_samples,))
-
 vcf_out = pysam.VariantFile(sys.argv[2], mode = "w", header = vcf_iterator.header)
+vcf_out.header.add_meta(key = "INFO", items = [ ("ID", "ALT_SQ_MEDIAN"), ("Number", 1), ("Type", "Float"), ("Description", "Median of SQs from ALT genotypes") ] )
+vcf_out.header.add_meta(key = "INFO", items = [ ("ID", "ALT_STANDARD_FILTER"), ("Number", 1), ("Type", "Float"), ("Description", "Standard filter using median of SQs from ALT genotypes") ] )
+vcf_out.header.add_meta(key = "INFO", items = [ ("ID", "ALT_DENOVO_FILTER"), ("Number", 1), ("Type", "Float"), ("Description", "De novo filter using median of SQs from ALT genotypes") ] )
 
 # format_tuple = ("GT", "PE", "SR", "SC", "NS", "HA", "NH", "SQ", "GL")
 format_tuple = ("GT", "PE", "SR", "SC", "NS", "HA", "NH", "SQ")
+SQs = np.zeros(shape = (len(vcf_iterator.header.samples),))
+ALT_SQs = np.nans(shape = (len(vcf_iterator.header.samples),))
 for record in vcf_iterator:
-    new_record = vcf_out.header.new_record(contig = record.chrom, start = record.pos, stop = record.stop, alleles = record.alleles, id = record.id, qual = record.qual, filter = record.filter, info = record.info)
-    for i in range(len(record.samples)): new_record.samples[0]["GT"] = record.samples[0]["GT"]
+    new_record = vcf_out.header.new_record(contig = record.chrom, start = record.start, stop = record.stop, alleles = record.alleles, id = record.id, qual = record.qual, filter = record.filter, info = record.info)
+    for i in range(len(record.samples)): new_record.samples[i]["GT"] = record.samples[i]["GT"]
     if record.qual == -1: 
         vcf_out.write(new_record) 
         continue 
@@ -71,20 +73,24 @@ for record in vcf_iterator:
         if record.samples[i]["SR"] not in (".", None): SR += record.samples[i]["SR"]
         for element in format_tuple: new_record.samples[i][element] = record.samples[i][element]
         if record.samples[i]["GL"] == ".": new_record.samples[i]["GL"] = (0, 0, 0)
+        if record.samples[i] == (0, 1):
+            ALT_SQs[i] = record.samples[i]["SQ"]
 
     SQ_median = np.nanmedian(SQs)
-
-    # If we're dealing with single sample VCF, then this part makes sense. But otherwise, we can't use it...
-    # SQ = record.samples[0]["SQ"]
-    # PE = record.samples[0]["PE"]
-    # SR = record.samples[0]["SR"]
-    
-    SVLEN = record.info["SVLEN"]
-    SVTYPE = record.info["SVTYPE"]
-
-    if calculate_filter(SVTYPE, SVLEN, PE, SR, SQ_median): new_record.filter.add("PASS")
-    else: new_record.filter.add("FAIL")
-
+    ALT_SQ_median = np.nanmedian(ALT_SQs)
     new_record.qual = SQ_median
+    
+    if calculate_filter(record.info["SVTYPE"], record.info["SVLEN"], PE, SR, SQ_median): new_record.filter.add("PASS")
+    else: new_record.filter.add("FAIL")
+    # If variant fails the standard filter, then it also fails DENOVO_FILTER 
+    new_record.info["DENOVO_FILTER"] = "FAIL"
+    if "FAIL" not in new_record.filter and calculate_denovo_filter(record.info["SVTYPE"], record.info["SVLEN"], PE, SR, SQ_median): new_record.info["DENOVO_FILTER"] = "PASS"
+
+
+    record.info["ALT_SQ_MEDIAN"] = ALT_SQ_median
+    new_record.info["ALT_STANDARD_FILTER"] = "FAIL"
+    new_record.info["ALT_DENOVO_FILTER"] = "FAIL"
+    if calculate_filter(record.info["SVTYPE"], record.info["SVLEN"], PE, SR, ALT_SQ_median): new_record.info["ALT_STANDARD_FILTER"] = "PASS"
+    if new_record.info["ALT_STANDARD_FILTER"] != "FAIL" and calculate_denovo_filter(record.info["SVTYPE"], record.info["SVLEN"], PE, SR, ALT_SQ_median): new_record.info["ALT_DENOVO_FILTER"] = "PASS"
 
     vcf_out.write(new_record) 
