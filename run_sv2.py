@@ -179,6 +179,7 @@ if args.sv_bed_file:
                 sv_bed_list_unfiltered.append(line.rstrip())
                 continue
             sv_bed_list_unfiltered.append(line.rstrip())
+            if "_" in chrom: continue
             if (chrom, start, stop) in sv_bed_set: continue
             sv_bed_set.add((chrom, start, stop)) # Don't include duplicates (even of different svtypes)
             sv_bed_list.append(line.rstrip())
@@ -191,10 +192,14 @@ elif args.sv_vcf_file:
             sv_bed_list_unfiltered.append("\t".join([chrom, str(start), str(stop), svtype]))
             continue
         sv_bed_list_unfiltered.append("\t".join([chrom, str(start), str(stop), svtype]))
+        if "_" in chrom: continue
         if (chrom, start, stop) in sv_bed_set: continue # Don't include duplicates (even of different svtypes)
         sv_bed_set.add((chrom, start, stop))
         sv_bed_list.append("\t".join([chrom, str(start), str(stop), svtype]))
 
+if len(sv_bed_list) == 0:
+    print("Empy SV list. Exiting")
+    sys.exit(0)
 sv_bed = BedTool(sv_bed_list).filter(lambda x: len(x) > 0).saveas()
 if args.threshold: sv_bed = sv_bed.filter(lambda x: len(x) < args.threshold).saveas()
 # Create a dummy BedTool for when it's not specified as an argument (i.e. the user doesn't want to use it). I have to do it this way because it doesn't work when I just create an empty BedTool...
