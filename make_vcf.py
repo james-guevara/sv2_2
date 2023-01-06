@@ -211,7 +211,8 @@ def make_vcf(sample_name, reference_fasta, genotype_predictions_table, output_fo
             record.qual = -1
             record.info["SVTYPE"] = type_
             record.info["SVLEN"] = end - start + 1
-            record.samples[sample_name]["GT"] = (".", ".")
+            # record.samples[sample_name]["GT"] = (".", ".")
+            record.samples[sample_name]["GT"] = (None, None)
             vcf.write(record)
 
     vcf.close()
