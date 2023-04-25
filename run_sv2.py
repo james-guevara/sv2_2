@@ -10,7 +10,7 @@ import sys
 from time import gmtime, strftime
 
 current_time = strftime("%Y-%m-%d_%H.%M.%S", gmtime())
-print("Running SV2. The output filenames will be prepended with the start time: {}".format(current_time))
+print("Running SV2. Start time: {}".format(current_time))
 
 # For step 1
 from make_feature_table import make_GC_content_reference_table
@@ -302,4 +302,3 @@ print("Making VCF at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
 make_vcf(args.sample_name, args.reference_fasta, genotype_table_filepath, output_folder, sv2_command, current_time, sv_bed_list_unfiltered)
 
 print("Making VCF step done at {}".format(strftime("%Y-%m-%d_%H.%M.%S", gmtime())))
-

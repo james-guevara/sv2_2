@@ -222,6 +222,8 @@ def make_snv_features_table(snv_vcf_filepath, sv_bed, sv_interval_table, svtypes
                 if "DP" not in record.samples[sample_index]: continue
                 if "GT" not in record.samples[sample_index]: continue
 
+                if len(record.samples[sample_index]["AD"]) < 2: continue
+
                 locus_depths.append(record.samples[sample_index]["DP"])
 
                 if record.samples[sample_index]["GT"][0] == record.samples[sample_index]["GT"][1]: continue
